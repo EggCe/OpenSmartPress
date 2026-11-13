@@ -45,6 +45,13 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
       <label>Statistik [s] <select id="ws"><option>0.5</option><option>1</option><option>2</option><option>5</option><option>10</option><option>30</option><option>60</option></select></label>
       <label><input type="checkbox" id="band" checked> Min/Max-Band</label>
       <label><input type="checkbox" id="pause"> Pause</label>
+      <label>Y-Skala <select id="ymodus"><option value="auto">Auto</option><option value="null">Auto mit Null</option>
+        <option value="fest">Fest</option></select></label>
+      <span class="yfest" id="yfest" hidden>
+        <label>von <input type="number" id="ymin" step="any"></label>
+        <label>bis <input type="number" id="ymax" step="any"></label>
+        <button type="button" id="yauto">Auto</button>
+      </span>
     </div>
     <div class="knoepfe">
       <button class="primaer" data-c="t">Tara</button>
@@ -57,7 +64,11 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   </div>
 </div>
 
-<div class="karte glow"><div class="titel">Verlauf · Zeit / Gewicht</div><canvas id="plot"></canvas></div>
+<div class="karte glow">
+  <div class="plotkopf"><div class="titel">Verlauf · Zeit / Gewicht</div>
+    <div class="sub">Mausrad: zoomen · Ziehen: verschieben · Doppelklick: Auto</div></div>
+  <canvas id="plot"></canvas>
+</div>
 
 <div class="unten">
   <div class="karte"><div class="titel">Live-Statistik</div><div id="stat">warte auf Daten …</div></div>
@@ -96,7 +107,55 @@ function flAngleichen(s){
 document.querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>befehl(b.dataset.c));
 $("senden").onclick=senden;
 $("befehl").onkeydown=e=>{if(e.key==="Enter")senden();};
-$("einheit").onchange=()=>{wertZeigen();};
+$("einheit").onchange=()=>{skalaSetzen("auto");wertZeigen();};   // feste Werte gelten nur für eine Einheit
+
+// ---------- Y-Skala ----------
+let geo=null;                       // Lage des Diagramms beim letzten Zeichnen (für die Maus)
+let Pfest=null;                     // eingefrorene Daten während Pause
+const zahl=v=>Number(Number(v).toPrecision(6));
+function skalaSpeichern(){
+  try{localStorage.setItem("wz_yskala",JSON.stringify({m:$("ymodus").value,a:$("ymin").value,b:$("ymax").value}));}catch(e){}
+}
+function skalaSetzen(modus,a,b){
+  $("ymodus").value=modus;
+  if(a!==undefined){$("ymin").value=zahl(a);$("ymax").value=zahl(b);}
+  $("yfest").hidden=modus!=="fest";
+  skalaSpeichern();
+}
+$("ymodus").onchange=()=>{
+  const m=$("ymodus").value;
+  // beim Umschalten auf "Fest" den gerade sichtbaren Bereich übernehmen
+  if(m==="fest"&&geo&&!(+$("ymax").value>+$("ymin").value))skalaSetzen("fest",geo.lo,geo.hi);
+  else skalaSetzen(m);
+};
+$("ymin").oninput=$("ymax").oninput=skalaSpeichern;
+$("yauto").onclick=()=>skalaSetzen("auto");
+$("pause").onchange=()=>{Pfest=$("pause").checked?P.slice():null;};
+try{const s=JSON.parse(localStorage.getItem("wz_yskala")||"null");
+  if(s){$("ymin").value=s.a;$("ymax").value=s.b;skalaSetzen(s.m);}}catch(e){}
+
+// Maus im Diagramm: Rad zoomt um den Cursor, Ziehen verschiebt, Doppelklick = Auto
+const cvPlot=$("plot");
+function wertBeiY(y){return geo.hi-(y-geo.T)/geo.ph*(geo.hi-geo.lo);}
+cvPlot.addEventListener("wheel",e=>{
+  if(!geo)return;
+  e.preventDefault();
+  const r=cvPlot.getBoundingClientRect(),v=wertBeiY(e.clientY-r.top),k=e.deltaY>0?1.25:0.8;
+  skalaSetzen("fest",v-(v-geo.lo)*k,v+(geo.hi-v)*k);
+},{passive:false});
+let zieh=null;
+cvPlot.addEventListener("pointerdown",e=>{
+  if(!geo||e.pointerType!=="mouse"||e.button!==0)return;   // Touch: Seite weiter scrollbar
+  zieh={y:e.clientY,lo:geo.lo,hi:geo.hi};cvPlot.setPointerCapture(e.pointerId);
+});
+cvPlot.addEventListener("pointermove",e=>{
+  if(!zieh)return;
+  const dv=(e.clientY-zieh.y)/geo.ph*(zieh.hi-zieh.lo);
+  skalaSetzen("fest",zieh.lo+dv,zieh.hi+dv);
+});
+cvPlot.addEventListener("pointerup",()=>{zieh=null;});
+cvPlot.addEventListener("pointercancel",()=>{zieh=null;});
+cvPlot.addEventListener("dblclick",()=>skalaSetzen("auto"));
 function senden(){const t=$("befehl").value.trim();if(t){befehl(t);$("befehl").value="";}}
 async function befehl(c){
   try{await fetch("/cmd",{method:"POST",body:new URLSearchParams({c})});}
@@ -218,37 +277,46 @@ function zeichnen(ts){
   requestAnimationFrame(zeichnen);
   if(ts-letztesBild<50)return;            // max. 20 Bilder/s
   letztesBild=ts;
-  if($("pause").checked||!cfg)return;
+  if(!cfg)return;
+  const D=Pfest||P;                          // bei Pause die eingefrorenen Daten (Zoomen bleibt möglich)
   const cv=$("plot"),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
   const ctx=cv.getContext("2d");
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   const css=getComputedStyle(document.documentElement),farbe=n=>css.getPropertyValue(n).trim();
   ctx.font="12px system-ui,sans-serif";ctx.fillStyle=farbe("--leise");
-  if(!P.length){ctx.fillText("warte auf Messwerte …",20,30);return;}
+  if(!D.length){geo=null;ctx.fillText("warte auf Messwerte …",20,30);return;}
 
-  const fs=Math.max(1,+$("fenster").value||10),tEnde=P[P.length-1][0],tStart=tEnde-fs*1000;
-  let i0=P.length-1;while(i0>0&&P[i0-1][0]>=tStart)i0--;
-  const n=P.length-i0,band=$("band").checked,roh=$("roh").checked,glatt=cfg.filter>0;
+  const fs=Math.max(1,+$("fenster").value||10),tEnde=D[D.length-1][0],tStart=tEnde-fs*1000;
+  let i0=D.length-1;while(i0>0&&D[i0-1][0]>=tStart)i0--;
+  const n=D.length-i0,band=$("band").checked,roh=$("roh").checked,glatt=cfg.filter>0;
   const t=new Float64Array(n),ym=new Float64Array(n),ylo=new Float64Array(n),yhi=new Float64Array(n),yg=new Float64Array(n);
   let lo=Infinity,hi=-Infinity;
   const nimm=v=>{if(v<lo)lo=v;if(v>hi)hi=v;};
   for(let k=0;k<n;k++){
-    const p=P[i0+k];t[k]=(p[0]-tEnde)/1000;ym[k]=umrechnen(p[1]);
+    const p=D[i0+k];t[k]=(p[0]-tEnde)/1000;ym[k]=umrechnen(p[1]);
     const a=umrechnen(p[2]),b=umrechnen(p[3]);ylo[k]=Math.min(a,b);yhi[k]=Math.max(a,b);
     yg[k]=p.length>4?umrechnen(p[4]):NaN;          // geglätteter Wert aus der Firmware
     if(band){nimm(ylo[k]);nimm(yhi[k]);}
     if(roh||!glatt)nimm(ym[k]);
     if(glatt&&isFinite(yg[k]))nimm(yg[k]);
   }
+  const datLo=lo,datHi=hi;                    // tatsächlicher Wertebereich (für Hinweis "außerhalb")
+  const ymod=$("ymodus").value;
+  if(ymod==="null"){lo=Math.min(lo,0);hi=Math.max(hi,0);}
   if(!(hi>lo)){const m=isFinite(lo)?lo:0;lo=m-1;hi=m+1;}
   const pad=(hi-lo)*0.06;lo-=pad;hi+=pad;
+  if(ymod==="fest"){
+    const a=parseFloat($("ymin").value),b=parseFloat($("ymax").value);
+    if(isFinite(a)&&isFinite(b)&&b>a){lo=a;hi=b;}
+  }
 
   // Achsen und Gitter
   const ys=schritt(hi-lo,6),dez=Math.max(0,-Math.floor(Math.log10(ys)+1e-9));
   const yt=[];for(let v=Math.ceil(lo/ys)*ys;v<=hi;v+=ys)yt.push(v);
   let lw=0;for(const v of yt)lw=Math.max(lw,ctx.measureText(f(v,dez)).width);
   const L=lw+14,R=12,T=18,B=26,pw=W-L-R,ph=H-T-B;
+  geo={L,T,pw,ph,lo,hi};
   const X=tt=>L+(tt+fs)/fs*pw,Y=v=>T+(hi-v)/(hi-lo)*ph;
   ctx.strokeStyle=farbe("--gitter");ctx.lineWidth=1;ctx.textAlign="right";ctx.textBaseline="middle";
   for(const v of yt){const y=Math.round(Y(v))+.5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();ctx.fillText(f(v,dez),L-6,y);}
@@ -277,6 +345,10 @@ function zeichnen(ts){
     ctx.shadowBlur=0;
   }
   ctx.restore();
+  // Hinweis, wenn Werte außerhalb einer festen Skala liegen
+  ctx.fillStyle=farbe("--warn");ctx.textAlign="right";
+  if(datHi>hi){ctx.textBaseline="top";ctx.fillText("▲ Werte darüber",L+pw-6,T+4);}
+  if(datLo<lo){ctx.textBaseline="bottom";ctx.fillText("▼ Werte darunter",L+pw-6,T+ph-4);}
 }
 
 // ---------- CSV der Graphdaten ----------

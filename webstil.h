@@ -73,6 +73,13 @@ color:#cde6cd;background:#030503;border:1px solid var(--rand);border-radius:12px
 :focus-visible{outline:2px solid var(--akzent);outline-offset:2px}
 
 .kopfrechts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+[hidden]{display:none!important}
+.yfest{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.yfest button{padding:4px 12px}
+.plotkopf{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between}
+.plotkopf .titel{margin-bottom:6px}
+.plotkopf .sub{margin:0 0 6px;font-size:12px}
+#plot{cursor:ns-resize}
 
 /* Links (beide Seiten) */
 a{color:var(--akzent);text-decoration:none}

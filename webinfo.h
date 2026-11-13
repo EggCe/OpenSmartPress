@@ -92,7 +92,12 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <tr><td>Rohsignal</td><td>Blendet die blasse, ungeglättete Linie ein oder aus.</td><td>Aus, wenn nur der geglättete Verlauf interessiert.</td></tr>
     <tr><td>Statistik</td><td>Über wie viele Sekunden die Live-Statistik gerechnet wird. Danach beginnt eine neue Runde.</td><td>2–5 s für den Alltag, 30–60 s für genaue Rauschwerte.</td></tr>
     <tr><td>Min/Max-Band</td><td>Grüne Fläche zwischen kleinstem und größtem Rohwert je Diagrammpunkt (je 20 ms).</td><td>Wird das Band plötzlich breiter, kommt eine Störung dazu.</td></tr>
-    <tr><td>Pause</td><td>Hält das Diagramm an. Die Messung läuft weiter.</td><td>Zum Ablesen einer Stelle im Verlauf.</td></tr>
+    <tr><td>Pause</td><td>Friert den angezeigten Verlauf ein. Die Messung läuft weiter.</td><td>Im angehaltenen Verlauf kannst du weiter zoomen und verschieben.</td></tr>
+    <tr><td>Y-Skala</td><td><strong>Auto</strong> passt die Achse laufend an. <strong>Auto mit Null</strong> hält die Null-Linie im Bild.
+      <strong>Fest</strong> nutzt deine Werte für „von“ und „bis“ in der gewählten Einheit.</td>
+      <td>Im Diagramm: Mausrad zoomt um den Mauszeiger, Ziehen verschiebt, Doppelklick schaltet auf Auto.
+      Bei fester Skala zeigt „▲ Werte darüber“ bzw. „▼ darunter“, dass etwas abgeschnitten ist.
+      Beim Wechsel der Einheit springt die Skala auf Auto.</td></tr>
     <tr><td>Tara</td><td>Mittelt etwa 2 s und setzt diesen Wert als Nullpunkt.</td><td>Nur bei entlasteter, ruhiger Zelle drücken.</td></tr>
     <tr><td>Rauschtest</td><td>Misst etwa 5 s ungeglättet und schreibt eine ausführliche Rauschanalyse ins Protokoll.</td><td>Zelle dabei nicht berühren.</td></tr>
     <tr><td>Rauschvergleich</td><td>Misst nacheinander bei mehreren Datenraten und gibt eine Vergleichstabelle aus.</td><td>Dauert etwa 25 s. Danach wird die vorherige Datenrate wiederhergestellt.</td></tr>
