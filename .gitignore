@@ -1,0 +1,14 @@
+# Persönliche WLAN-Zugangsdaten (Vorlage: wlan_zugang.beispiel.h)
+wlan_zugang.h
+
+# Aufzeichnungen von waegezelle_plot.py und der Weboberfläche
+waegezelle_*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Arduino / Editor
+build/
+.vscode/
