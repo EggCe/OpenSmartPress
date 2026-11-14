@@ -69,11 +69,31 @@ void jsonEnde() {
 // ===========================================================================
 // Routen
 // ===========================================================================
+// Kein Seitenaufruf während der Antrieb fährt (Pressung, Kalibrierung, Fahrt): send_P blockiert Kern 0
+// für die ganze Seite (Pressseite 66 KB = mehrere TCP-Fenster), in der Zeit läuft der Aufzeichnungs-
+// ring der Pressung (2048 Proben) über. Statt der Seite kommen ein paar hundert Byte, die sich alle
+// 2 s neu laden, bis der Antrieb steht.
+static const char WARTESEITE[] = R"WARTE(<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2">
+<title>Bitte warten</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;
+background:#050705;color:#f3f7f3;font:16px system-ui,sans-serif;text-align:center"><div>
+<p style="font-size:22px;font-weight:700;color:#ffb020">Antrieb läuft</p>
+<p>Die Seite wird geladen, sobald die Pressung bzw. Fahrt beendet ist.</p></div></body></html>)WARTE";
+
+bool webSeiteGesperrt() {
+  if (!antrieb::beschaeftigt()) return false;
+  server.sendHeader("Cache-Control", "no-store");
+  server.sendHeader("Retry-After", "2");
+  server.send_P(503, "text/html; charset=utf-8", WARTESEITE);
+  return true;
+}
+
 static void webSeite() {
+  if (webSeiteGesperrt()) return;
   server.send_P(200, "text/html; charset=utf-8", WEBUI_HTML);
 }
 
-static void webStil() {
+static void webStil() {                                 // 9 KB passen in ein TCP-Sendefenster: nicht gesperrt
   // 5 Minuten zwischenspeichern: nach einem Firmware-Update ist neues CSS spätestens dann aktiv
   server.sendHeader("Cache-Control", "max-age=300");
   server.send_P(200, "text/css; charset=utf-8", WEBUI_CSS);

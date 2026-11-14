@@ -10,21 +10,21 @@ static const char WEBUI_CSS[] = R"WEBSTIL(/* Dunkles Design mit Neongrün (nach 
 --rand:#1b251b;--rand2:#2a3a2a;--akzent:#3ae23a;--akzent2:#18a818;--akzentText:#031003;--glow:rgba(58,226,58,.32);
 --band:rgba(58,226,58,.13);--linie:rgba(200,255,200,.5);--ma:#3ae23a;--gitter:#152015;--warn:#ffb020;--fehler:#ff5c5c;--ok:#3ae23a;
 --ar:58,226,58;--ar2:24,168,24;--wr:255,176,32;--fr:255,92,92;--hover:#5cf05c;--hell:#ffffff;
---stopp:#ff5c5c;--stoppHover:#ff7676;--stoppText:#fff;--sr:255,92,92;
+--stopp:#ff5c5c;--stoppHover:#ff7676;--stoppText:#fff;--sr:255,92,92;--fehlerText:#1a0000;
 --menue:rgba(10,13,10,.85);--kopf:rgba(13,17,13,.78);--logBg:#030503;--logText:#cde6cd;--scroll:#1e2c1e}
 /* Rot / Schwarz: Fehler und Abbrüche violett, STOPP hell, damit sie sich vom roten Akzent abheben */
 :root[data-thema="rot"]{--bg:#070505;--bg2:#0d0909;--karte:#110c0c;--karte2:#1a1212;--text:#f7f1f1;--leise:#a89494;
 --rand:#261a1a;--rand2:#3a2828;--akzent:#ff3b3b;--akzent2:#b81818;--akzentText:#140303;--glow:rgba(255,59,59,.32);
 --band:rgba(255,59,59,.13);--linie:rgba(255,210,210,.5);--ma:#ff3b3b;--gitter:#201414;--warn:#ffc83d;--fehler:#c58cff;--ok:#6fdc8c;
 --ar:255,59,59;--ar2:184,24,24;--wr:255,200,61;--fr:197,140,255;--hover:#ff6161;--hell:#ffffff;
---stopp:#f3eded;--stoppHover:#ffffff;--stoppText:#b00000;--sr:255,255,255;
+--stopp:#f3eded;--stoppHover:#ffffff;--stoppText:#b00000;--sr:255,255,255;--fehlerText:#12001f;
 --menue:rgba(13,9,9,.85);--kopf:rgba(17,12,12,.78);--logBg:#050303;--logText:#ecd2d2;--scroll:#3a2424}
 /* Blau / Hell */
 :root[data-thema="hell"]{color-scheme:light;--bg:#eef3f9;--bg2:#f6f9fc;--karte:#ffffff;--karte2:#f7faff;--text:#0f1d2e;--leise:#5b6c82;
 --rand:#dde5ef;--rand2:#c5d2e2;--akzent:#1f6fe5;--akzent2:#1652b5;--akzentText:#ffffff;--glow:rgba(31,111,229,.2);
---band:rgba(31,111,229,.12);--linie:rgba(15,29,46,.45);--ma:#1f6fe5;--gitter:#e6ecf3;--warn:#c27400;--fehler:#d6343a;--ok:#1a8f4a;
---ar:31,111,229;--ar2:22,82,181;--wr:194,116,0;--fr:214,52,58;--hover:#3d85f0;--hell:#0f1d2e;
---stopp:#d6343a;--stoppHover:#e24a50;--stoppText:#fff;--sr:214,52,58;
+--band:rgba(31,111,229,.12);--linie:rgba(15,29,46,.45);--ma:#1f6fe5;--gitter:#e6ecf3;--warn:#9a5c00;--fehler:#d6343a;--ok:#1a8f4a;
+--ar:31,111,229;--ar2:22,82,181;--wr:154,92,0;--fr:214,52,58;--hover:#3d85f0;--hell:#0f1d2e;
+--stopp:#d6343a;--stoppHover:#e24a50;--stoppText:#fff;--sr:214,52,58;--fehlerText:#fff;
 --menue:rgba(255,255,255,.88);--kopf:rgba(255,255,255,.85);--logBg:#f6f9fc;--logText:#1d2b3c;--scroll:#c5d2e2}
 *{box-sizing:border-box}
 html{background:var(--bg)}
@@ -121,4 +121,66 @@ a.chip:hover{border-color:var(--akzent);box-shadow:0 0 12px rgba(var(--ar),.22);
 .themen button.aktiv{border-color:var(--text);box-shadow:0 0 0 2px var(--akzent)}
 /* Farbfelder in Legenden */
 .fl{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin:0 3px 0 2px}
+/* Dialoge und Schrittlisten (beide Seiten) */
+dialog{background:var(--karte);color:var(--text);border:1px solid var(--rand2);border-radius:14px;padding:16px 18px;
+max-width:min(560px,calc(100vw - 32px));box-shadow:0 0 30px var(--glow)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog input[type=number]{width:110px}
+.awgitter{display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center}
+.awgitter label{justify-content:space-between}
+.schritt{display:grid;grid-template-columns:30px 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--rand)}
+.schritt:last-of-type{border-bottom:0}
+.schritt .nr{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;
+border:1px solid var(--rand2);color:var(--leise)}
+.schritt.ok .nr{background:var(--akzent);color:var(--akzentText);border-color:var(--akzent);box-shadow:0 0 10px var(--glow)}
+.schritt b{font-size:14px}
+.schritt .sub{margin:0}
+.schritt .knoepfe{margin-top:6px}
+
+/* Hinweisleisten oben: keine Verbindung, Simulation */
+.banner{position:sticky;top:0;z-index:40;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:center;
+padding:9px 16px;font-weight:700;text-align:center}
+.banner.offline{background:var(--fehler);color:var(--fehlerText)}
+.banner.sim{background:repeating-linear-gradient(135deg,rgb(var(--wr)) 0 14px,rgba(var(--wr),.82) 14px 28px);color:#1a1000}
+.banner button{padding:3px 12px;font-size:13px}
+/* Ohne Verbindung: Befehlsknöpfe sperren (STOPP bleibt bedienbar) */
+body.offline [data-c]:not(.stopp),body.offline .sendet{opacity:.4;pointer-events:none}
+
+/* STOPP-Leiste, solange der Antrieb fährt - immer sichtbar, auch wenn weiter unten gescrollt */
+.stoppleiste{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:14px;
+padding:8px 8px 8px 18px;border:1px solid rgba(var(--sr),.6);border-radius:999px;background:var(--menue);backdrop-filter:blur(8px);
+box-shadow:0 6px 30px rgba(0,0,0,.45);max-width:calc(100vw - 32px)}
+.stoppleiste span{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.stoppleiste button.stopp{font-size:18px;padding:10px 30px;flex:none}
+body.faehrt main{padding-bottom:96px}
+
+/* Rückmeldungen zu Befehlen unten rechts */
+.meldungen{position:fixed;right:16px;bottom:16px;z-index:45;display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+max-width:min(460px,calc(100vw - 32px));pointer-events:none}
+body.faehrt .meldungen{bottom:92px}
+.meldung{pointer-events:auto;padding:8px 12px;border:1px solid var(--rand2);border-left:4px solid var(--akzent);border-radius:10px;
+background:var(--karte);color:var(--text);box-shadow:0 4px 18px rgba(0,0,0,.35);font-size:13px;white-space:pre-wrap;animation:rein .15s ease-out}
+.meldung.warn{border-left-color:var(--warn)}
+.meldung.fehler{border-left-color:var(--fehler)}
+@keyframes rein{from{opacity:0;transform:translateY(6px)}}
+
+/* Modus Bedienen / Einrichten: Einrichte-Elemente nur im Modus Einrichten */
+:root[data-modus="bedienen"] .einr{display:none!important}
+.modus{display:inline-flex;border:1px solid var(--rand2);border-radius:999px;padding:2px;background:var(--bg2)}
+.modus button{border:0;padding:3px 11px;font-size:12px;box-shadow:none;background:transparent;color:var(--leise)}
+.modus button.aktiv{background:var(--akzent);color:var(--akzentText)}
+/* Begriffe mit Erklärung (title) */
+dt[title],th[title],td[title],label[title]{text-decoration:underline dotted var(--rand2);text-underline-offset:3px;cursor:help}
+/* geänderter, noch nicht übernommener Wert */
+input.geaendert{border-color:var(--warn);box-shadow:0 0 0 3px rgba(var(--wr),.18)}
+
+/* Touch (Tablet an der Maschine): größere Bedienflächen */
+@media (pointer:coarse){
+  button{min-height:40px}
+  td button,td .chip{min-height:36px;padding:6px 12px}
+  select,input[type=number],input[type=text]{min-height:40px}
+  input[type=checkbox]{width:22px;height:22px}
+  .themen button{width:30px;height:30px;min-height:0}
+  .modus button{min-height:34px}
+}
 )WEBSTIL";

@@ -121,6 +121,13 @@ Funktioniert `waegezelle.local` nicht, die IP-Adresse aus dem seriellen Monitor 
 im Flash des Pico und brauchen kein Internet. Der Knopf „Hilfe“ öffnet [help.md](help.md) auf GitHub (dafür ist
 Internet nötig): alle Regler und Kennzahlen erklärt, Einstelltipps, Kalibrierablauf.
 
+Beide Seiten haben die Ansicht **Bedienen / Einrichten** (im Browser gespeichert, neuer Browser = Bedienen):
+Bedienen zeigt nur Tara, Hub kalibrieren, Sitzung, START/STOPP, Diagramm und Auswertung; Einrichten zusätzlich
+Datenrate, Rauschtests, Waage kalibrieren (Dialog), Speichern, Tippbetrieb, Simulation, Pressparameter
+(inkl. Maximalkraft/Kontakt), Protokoll und Befehlszeile. Kein Zugriffsschutz. Solange der Antrieb fährt, steht
+unten eine STOPP-Leiste; Antworten und Fehler des Pico erscheinen kurz unten rechts; ohne Verbindung sperrt ein
+roter Balken die Befehlsknöpfe (außer STOPP).
+
 **Empfohlene Grundeinstellung zum Wiegen:** 2000 SPS, Glättung 0,5 s, Statistik 2–5 s.
 
 ### Erste Schritte
@@ -338,6 +345,7 @@ Gramm = (Counts − tara) / faktor
 
 | Adresse | Inhalt |
 |---|---|
+| `GET /` / `GET /presse` | Messseite / Pressseite. Während der Antrieb fährt (Pressung, Kalibrierung, Fahrt) kommt stattdessen eine kurze Warteseite (503), die sich alle 2 s neu lädt: das Senden der ganzen Seite würde Kern 0 so lange blockieren, dass Proben der Pressung verloren gehen. Beide Seiten fragen vor dem Verlassen nach, solange der Antrieb fährt. |
 | `GET /daten?p=<punkt>&l=<log>` | JSON: Konfiguration, Diagrammpunkte (Zeit, Mittel, Min, Max, geglättet), Statistik, neue Protokollzeilen |
 | `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus (Kopfzeile `X-Waegezelle: 1` nötig, siehe unten) |
 | `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, Rohdatenstand, neue Protokollzeilen |

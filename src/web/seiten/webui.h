@@ -12,7 +12,10 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Wägezelle</title>
 <link rel="stylesheet" href="/stil.css">
-<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";}catch(e){}</script></head><body><main>
+<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";
+document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus")||'"bedienen"');}catch(e){document.documentElement.dataset.modus="bedienen";}</script></head><body>
+<div class="banner offline" id="offlineBanner" role="alert" hidden>Keine Verbindung zum Pico – Befehle sind gesperrt, die Seite verbindet sich von selbst neu.</div>
+<main>
 <header>
   <div class="marke">
     <div class="logo"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -20,6 +23,7 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
     <h1>EcklC <em>OpenSmartPress</em> <span>Wägezelle · ADS1256</span></h1>
   </div>
   <div class="kopfrechts">
+    <div class="modus" title="Bedienen: nur was für die Produktion nötig ist · Einrichten: alle Einstellungen, Diagnose, Protokoll"><button data-m="bedienen">Bedienen</button><button data-m="einrichten">Einrichten</button></div>
     <div class="themen" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div>
     <div class="status" id="status">verbinde …</div>
     <a class="chip" href="/presse">Pressen</a>
@@ -36,17 +40,17 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   <div class="karte">
     <div class="titel">Steuerung</div>
     <div class="leiste">
-      <label>Datenrate <select id="rate"></select></label>
+      <label class="einr">Datenrate <select id="rate"></select></label>
       <label>Anzeige <select id="einheit"><option>Gramm</option><option>µV</option><option>Counts</option></select></label>
       <label>Fenster [s] <input type="number" id="fenster" value="10" min="1" max="600" step="1"></label>
-      <label>Glättung <select id="fl"><option value="0">aus</option><option value="0.02">0,02 s</option>
+      <label class="einr">Glättung <select id="fl"><option value="0">aus</option><option value="0.02">0,02 s</option>
         <option value="0.05">0,05 s</option><option value="0.1">0,1 s</option><option value="0.2">0,2 s</option>
         <option value="0.5">0,5 s</option><option value="1">1 s</option><option value="2">2 s</option>
         <option value="5">5 s</option><option value="10">10 s</option><option value="30">30 s</option>
         <option value="60">60 s</option></select></label>
-      <label><input type="checkbox" id="roh" checked> Rohsignal</label>
-      <label>Statistik [s] <select id="ws"><option>0.5</option><option>1</option><option>2</option><option>5</option><option>10</option><option>30</option><option>60</option></select></label>
-      <label><input type="checkbox" id="band" checked> Min/Max-Band</label>
+      <label class="einr"><input type="checkbox" id="roh" checked> Rohsignal</label>
+      <label class="einr">Statistik [s] <select id="ws"><option>0.5</option><option>1</option><option>2</option><option>5</option><option>10</option><option>30</option><option>60</option></select></label>
+      <label class="einr"><input type="checkbox" id="band" checked> Min/Max-Band</label>
       <label><input type="checkbox" id="pause"> Pause</label>
       <label>Y-Skala <select id="ymodus"><option value="auto">Auto</option><option value="null">Auto mit Null</option>
         <option value="fest">Fest</option></select></label>
@@ -57,12 +61,14 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
       </span>
     </div>
     <div class="knoepfe">
-      <button class="primaer" data-c="t">Tara</button>
-      <button data-c="n">Rauschtest</button>
-      <button data-c="nv">Rauschvergleich</button>
-      <button data-c="i">Info</button>
-      <button data-c="x">Abbruch</button>
-      <button id="csv">CSV speichern</button>
+      <button class="primaer" data-c="t" title="Mittelt etwa 2 s und setzt den Wert als Nullpunkt – nur bei entlasteter, ruhiger Zelle">Tara</button>
+      <button class="einr sendet" id="kalOeffnen" title="Faktor mit einem bekannten Gewicht bestimmen">Waage kalibrieren …</button>
+      <button class="einr" data-c="s" title="Tara, Faktor, Glättung, Datenrate und Ausgabemodus dauerhaft speichern (Befehl s)">Speichern</button>
+      <button class="einr" data-c="n" title="Misst etwa 5 s ungeglättet und schreibt eine Rauschanalyse ins Protokoll – Zelle nicht berühren">Rauschtest</button>
+      <button class="einr" data-c="nv" title="Misst nacheinander bei mehreren Datenraten (etwa 25 s) und vergleicht das Rauschen">Rauschvergleich</button>
+      <button class="einr" data-c="i" title="Gerätestatus ins Protokoll schreiben">Info</button>
+      <button data-c="x" title="Bricht Tara, Kalibrierung oder Rauschtest ab (wie STOPP)">Auftrag abbrechen</button>
+      <button id="csv" title="Diagrammdaten herunterladen (Zeit, Mittel, Min, Max, geglättet)">CSV speichern</button>
     </div>
   </div>
 </div>
@@ -77,20 +83,20 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   <div class="plotkopf"><div class="titel">Antrieb · HB808C</div><div class="status" id="motStatus"></div></div>
   <div class="motraster">
     <div><div class="sub">Position</div><div class="motwert" id="motPos">–</div><div class="sub" id="motPosSub">&nbsp;</div></div>
-    <div><div class="sub">Letzte Endpunkt-Kalibrierung</div><div class="motkal" id="motKal">–</div></div>
+    <div><div class="sub">Letzte Hub-Kalibrierung</div><div class="motkal" id="motKal">–</div></div>
   </div>
   <div class="knoepfe">
-    <button class="primaer" data-c="mot kal">Endpunkt kalibrieren</button>
-    <button data-c="mot auf 5">Auf 5 mm</button>
-    <button data-c="mot auf 1">Auf 1 mm</button>
-    <button data-c="mot ab 1">Ab 1 mm</button>
-    <button data-c="mot ab 0.1">Ab 0,1 mm</button>
+    <button class="primaer" data-c="mot kal" title="Fährt langsam auf das Werkzeug, merkt sich den Werkzeug-Endpunkt (Weg 0) und fährt zurück – ohne Werkstück">Hub kalibrieren</button>
+    <button class="einr" data-c="mot auf 5">Auf 5 mm</button>
+    <button class="einr" data-c="mot auf 1">Auf 1 mm</button>
+    <button class="einr" data-c="mot ab 1">Ab 1 mm</button>
+    <button class="einr" data-c="mot ab 0.1">Ab 0,1 mm</button>
     <button class="stopp" data-c="x" title="Taste Esc">STOPP</button>
   </div>
-  <div class="sub" id="motParam">&nbsp;</div>
+  <div class="sub einr" id="motParam">&nbsp;</div>
 </div>
 
-<div class="unten">
+<div class="unten einr">
   <div class="karte"><div class="titel">Live-Statistik</div><div id="stat">warte auf Daten …</div></div>
   <div class="karte">
     <div class="titel">Protokoll</div>
@@ -101,7 +107,30 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
     </div>
   </div>
 </div>
+<dialog id="kalDlg">
+  <div class="titel">Waage kalibrieren</div>
+  <div class="sub">Bestimmt den Faktor Counts → Gramm mit einem bekannten Gewicht. Vorher 15–30 min warmlaufen lassen,
+    Datenrate 2000 SPS.</div>
+  <div class="schritt" id="k1"><div class="nr">1</div><div>
+    <b>Waage entlasten und tarieren</b>
+    <div class="sub">Alles abnehmen und warten, bis die Anzeige ruhig ist.</div>
+    <div class="knoepfe"><button class="sendet" id="kalTara">Tara</button></div></div></div>
+  <div class="schritt" id="k2"><div class="nr">2</div><div>
+    <b>Bekanntes Gewicht auflegen</b>
+    <div class="sub">Mittig, möglichst 5 kg oder mehr (kleine Gewichte vergrößern jeden Fehler). Etwa 10 s warten.</div>
+    <div class="knoepfe"><label>Gewicht [g] <input type="number" id="kalG" min="1" max="50000" step="any" value="5000"></label>
+      <button class="primaer sendet" id="kalStart">Kalibrieren</button></div></div></div>
+  <div class="schritt" id="k3"><div class="nr">3</div><div>
+    <b>Ergebnis prüfen und speichern</b>
+    <div class="sub" id="kalErg">–</div>
+    <div class="knoepfe"><button class="sendet" id="kalSpeichern">Speichern</button></div></div></div>
+  <div class="sub" id="kalLauf">&nbsp;</div>
+  <div class="knoepfe"><button id="kalZu">Schließen</button></div>
+</dialog>
 </main>
+<div class="stoppleiste" id="stoppleiste" hidden><span id="stoppText">Antrieb fährt</span>
+  <button class="stopp" data-c="x" title="Taste Esc">STOPP</button></div>
+<div class="meldungen" id="meldungen" role="status" aria-live="polite"></div>
 <script>
 "use strict";
 
@@ -115,7 +144,16 @@ document.querySelectorAll(".themen button").forEach(b=>b.onclick=()=>themaSetzen
 themaSetzen(document.documentElement.dataset.thema||"");
 const RATEN=[2.5,5,10,15,25,30,50,60,100,500,1000,2000,3750,7500,15000,30000];
 const $=id=>document.getElementById(id);
-let cfg=null,pn=null,ln=null,P=[],st=null,letzt=null,online=false,wsGesetzt=false,logRest="";
+let cfg=null,pn=null,ln=null,P=[],st=null,letzt=null,online=false,wsGesetzt=false,logRest="",offlineSeit=Date.now();
+
+// ---------- Modus Bedienen / Einrichten (gilt für beide Seiten, im Browser gespeichert) ----------
+function modusSetzen(m){
+  document.documentElement.dataset.modus=m;
+  try{localStorage.setItem("wz_modus",JSON.stringify(m));}catch(e){}
+  document.querySelectorAll(".modus button").forEach(b=>b.classList.toggle("aktiv",b.dataset.m===m));
+}
+document.querySelectorAll(".modus button").forEach(b=>b.onclick=()=>modusSetzen(b.dataset.m));
+modusSetzen(document.documentElement.dataset.modus==="einrichten"?"einrichten":"bedienen");
 
 // ---------- Bedienelemente ----------
 const selRate=$("rate");
@@ -186,9 +224,37 @@ cvPlot.addEventListener("pointerup",()=>{zieh=null;});
 cvPlot.addEventListener("pointercancel",()=>{zieh=null;});
 cvPlot.addEventListener("dblclick",()=>skalaSetzen("auto"));
 function senden(){const t=$("befehl").value.trim();if(t){befehl(t);$("befehl").value="";}}
+// ---------- Rückmeldung: Antworten des Pico nach einem Befehl, Fehler immer (unten rechts) ----------
+let rmBis=0;
+function meldung(text,art){
+  const box=$("meldungen"),el=document.createElement("div");
+  el.className="meldung"+(art?" "+art:"");el.textContent=text;box.appendChild(el);
+  while(box.children.length>4)box.firstChild.remove();
+  setTimeout(()=>el.remove(),art==="fehler"?9000:art==="warn"?6000:4000);
+}
+const RM_FEHLER=/FEHLER|ALARM|Sensorfehler|Ungueltig|Unbekannt/i;
+const RM_WARN=/abgebrochen|abgelehnt|verweigert|nicht |erst |kein|zuerst|Hinweis|Warn|faehrt/i;
+let logGeladen=false;                                         // erste Antwort = alter Verlauf: keine Meldungen
+function rueckmeldung(zeilen){
+  if(!logGeladen)return;
+  const jetzt=Date.now(),l=[];
+  for(const z of zeilen){
+    if(!z.startsWith("#")||z.startsWith("#CFG"))continue;
+    const t=z.replace(/^#\s*/,"").trim();
+    if(!t||/^[-=]{3}/.test(t))continue;
+    const art=RM_FEHLER.test(t)?"fehler":RM_WARN.test(t)?"warn":"";
+    if(jetzt<rmBis||art==="fehler")l.push([t,art]);
+  }
+  const zeig=l.length>3?l.slice(0,2):l;
+  for(const [t,art] of zeig)meldung(t,art);
+  if(l.length>3)meldung("… "+(l.length-2)+" weitere Zeilen im Protokoll","");
+}
 async function befehl(c){
-  try{await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});}
-  catch(e){logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
+  rmBis=Date.now()+3500;
+  try{const r=await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});
+    if(!r.ok)meldung("Befehl „"+c+"“ abgelehnt (HTTP "+r.status+")","fehler");}
+  catch(e){meldung("Befehl „"+c+"“ nicht gesendet – keine Verbindung","fehler");
+    logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
 }
 
 // ---------- Log ----------
@@ -204,7 +270,9 @@ function logAufnehmen(neu){
   const s=logRest+neu, k=s.lastIndexOf("\n");
   if(k<0){logRest=s;return;}
   logRest=s.slice(k+1);
-  logText(s.slice(0,k+1).split("\n").filter(z=>!z.startsWith("#CFG")).join("\n"));
+  const zeilen=s.slice(0,k+1).split("\n");
+  rueckmeldung(zeilen);
+  logText(zeilen.filter(z=>!z.startsWith("#CFG")).join("\n"));
 }
 
 // ---------- Umrechnung ----------
@@ -215,7 +283,7 @@ function umrechnen(c){
   return c;
 }
 function einheitKurz(){return {"Gramm":"g","µV":"µV","Counts":"Counts"}[$("einheit").value];}
-const f=(v,d)=>Number(v).toFixed(d);
+const f=(v,d)=>Number(v).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false});
 const de=v=>Math.round(v).toLocaleString("de-DE");
 
 // ---------- Abfrage ----------
@@ -225,18 +293,30 @@ async function abfragen(){
     const q=new URLSearchParams();
     if(pn!==null)q.set("p",pn);
     if(ln!==null)q.set("l",ln);
-    const r=await fetch("/daten?"+q,{cache:"no-store"});
-    const d=await r.json();
-    online=true;verarbeiten(d);mehr=!!d.mehr;
-  }catch(e){online=false;statusZeigen();}
+    const ac=new AbortController(),zl=setTimeout(()=>ac.abort(),2500);   // hängt der Pico, nicht ewig warten
+    try{
+      const r=await fetch("/daten?"+q,{cache:"no-store",signal:ac.signal});
+      const d=await r.json();
+      online=true;offlineSeit=0;verarbeiten(d);mehr=!!d.mehr;
+    }finally{clearTimeout(zl);}
+  }catch(e){online=false;if(!offlineSeit)offlineSeit=Date.now();statusZeigen();}
   setTimeout(abfragen,mehr?0:250);
 }
+// Verbindung und STOPP-Leiste
+function leistenZeigen(){
+  const off=!!offlineSeit&&Date.now()-offlineSeit>1200;
+  $("offlineBanner").hidden=!off;document.body.classList.toggle("offline",off);
+  const m=letzt&&letzt.mot,faehrt=!off&&!!m&&!!m.lauf;
+  $("stoppleiste").hidden=!faehrt;document.body.classList.toggle("faehrt",faehrt);
+  if(faehrt)$("stoppText").textContent=(Z_TEXT[m.z]||m.z)+(m.ok?" · "+f(m.pos/m.spmm,2)+" mm":"");
+}
+setInterval(leistenZeigen,500);
 function verarbeiten(d){
   if(pn!==null&&d.pn<pn){P=[];logText("# Browser: Pico wurde neu gestartet\n");}
   cfg=d.cfg;letzt=d;
   for(const p of d.p)P.push(p);
   pn=d.pn;
-  logAufnehmen(d.log);ln=d.ln;
+  logAufnehmen(d.log);ln=d.ln;logGeladen=true;
   if(d.st&&(!st||d.st.id!==st.id)){st=d.st;statZeigen();}
   if(P.length){
     const tmin=P[P.length-1][0]-600000;let i=0;
@@ -246,12 +326,49 @@ function verarbeiten(d){
   if(document.activeElement!==selRate)selRate.value=String(cfg.rate);
   flAngleichen(cfg.filter);
   if(!wsGesetzt){$("ws").value=String(d.ws);wsGesetzt=true;}
-  wertZeigen();statusZeigen();motZeigen();
+  wertZeigen();statusZeigen();motZeigen();kalZeigen();leistenZeigen();
 }
+
+// ---------- Waage kalibrieren (Dialog): Tara -> k <g> -> s ----------
+let kalWarten=null,kalTaraOk=false,kalOk=false;
+function kalAuftrag(art,c){kalWarten={art,gesehen:false,t0:Date.now(),faktor:cfg?cfg.faktor:NaN};befehl(c);kalZeigen();}
+function kalZeigen(){
+  if(!$("kalDlg").open||!letzt)return;
+  const w=kalWarten;
+  if(w){
+    if(letzt.auftrag)w.gesehen=true;
+    else if(w.gesehen||Date.now()-w.t0>2500){                // Auftrag beendet (oder nie gestartet)
+      if(w.art==="tara")kalTaraOk=w.gesehen;
+      if(w.art==="kal")kalOk=w.gesehen&&cfg.faktor!==w.faktor;
+      kalWarten=null;
+    }
+  }
+  $("k1").classList.toggle("ok",kalTaraOk);
+  $("k2").classList.toggle("ok",kalOk);
+  $("kalLauf").textContent=kalWarten?(kalWarten.art==="tara"?"Tara läuft …":"Kalibrierung läuft … Gewicht nicht berühren"):" ";
+  $("kalErg").innerHTML=kalOk?"Neuer Faktor <b>"+f(cfg.faktor,5)+"</b> Counts/g · Anzeige jetzt <b>"+f(umrechnenG(letzt.w),1)+
+    " g</b>. Details (Empfindlichkeit, Unsicherheit) im Protokoll.":
+    (cfg&&cfg.kal?"Aktueller Faktor "+f(cfg.faktor,5)+" Counts/g":"Noch nicht kalibriert (Schätzwert)");
+  for(const id of ["kalTara","kalStart","kalSpeichern"])$(id).disabled=!!kalWarten||!!letzt.auftrag;
+}
+const umrechnenG=c=>(c-cfg.tara)/cfg.faktor;
+$("kalOeffnen").onclick=()=>{kalTaraOk=false;kalOk=false;kalWarten=null;$("k3").classList.remove("ok");$("kalDlg").showModal();kalZeigen();};
+$("kalTara").onclick=()=>kalAuftrag("tara","t");
+$("kalStart").onclick=()=>{
+  const g=parseFloat(String($("kalG").value).replace(",","."));
+  if(!(g>0)){$("kalG").focus();return;}
+  if(!kalTaraOk&&!confirm("Ohne Tara im Dialog kalibrieren? Der aktuelle Nullpunkt wird verwendet."))return;
+  kalAuftrag("kal","k "+g);
+};
+$("kalSpeichern").onclick=()=>{befehl("s");$("k3").classList.add("ok");};
+$("kalZu").onclick=()=>$("kalDlg").close();
+if(location.hash==="#kalibrieren")setTimeout(()=>$("kalOeffnen").click(),0);   // Link von der Pressseite
 
 // ---------- Antrieb ----------
 const Z_TEXT={"Ueberlauf":"Überlauf","Rueckfahrt":"Rückfahrt"};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")befehl("x");});   // Esc = STOPP
+// Während der Antrieb fährt nicht neu laden oder wegnavigieren (der Pico liefert dann nur eine Warteseite)
+window.addEventListener("beforeunload",e=>{if(online&&letzt&&letzt.mot&&letzt.mot.lauf){e.preventDefault();e.returnValue="";}});
 function motZeigen(){
   const m=letzt&&letzt.mot;if(!m)return;
   const z=Z_TEXT[m.z]||m.z;
@@ -280,7 +397,7 @@ function motZeigen(){
 // ---------- Anzeigen ----------
 function statusZeigen(){
   const s=$("status");
-  if(!online||!letzt){s.innerHTML='<span class="chip"><span class="punkt aus"></span>keine Verbindung zum Pico</span>';return;}
+  if(!online||!letzt){s.innerHTML='<span class="chip warn"><span class="punkt aus"></span>keine Verbindung zum Pico</span>';return;}
   const d=letzt;
   const zustand=d.ok?(d.kont?'<span class="punkt"></span>misst':'<span class="punkt aus"></span>ADC angehalten')
                      :'<span class="punkt aus"></span>ADC nicht initialisiert';

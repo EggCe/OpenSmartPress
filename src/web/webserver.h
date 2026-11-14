@@ -30,3 +30,4 @@ void jsonFlush();
 void jsonEnde();
 void presseWebRouten();                                  // presse_web.cpp
 bool webSchreibenErlaubt();                              // false: 403 schon gesendet
+bool webSeiteGesperrt();                                 // true: Antrieb läuft, kurze Warteseite (503) schon gesendet
