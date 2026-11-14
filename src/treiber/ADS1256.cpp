@@ -334,7 +334,7 @@ void ADS1256::isrLesen() {
   }
 
   DrdyCallback cb = _callback;
-  if (cb) cb(jetzt);               // z. B. Schrittzähler einfrieren
+  if (cb) cb(jetzt, wert);         // z. B. Kraftüberwachung des Antriebs (auch bei vollem Puffer)
 }
 
 void ADS1256::enableDrdyInterrupt() {

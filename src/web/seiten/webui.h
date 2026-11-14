@@ -70,6 +70,23 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   <canvas id="plot"></canvas>
 </div>
 
+<div class="karte" id="antriebKarte">
+  <div class="plotkopf"><div class="titel">Antrieb · HB808C</div><div class="status" id="motStatus"></div></div>
+  <div class="motraster">
+    <div><div class="sub">Position</div><div class="motwert" id="motPos">–</div><div class="sub" id="motPosSub">&nbsp;</div></div>
+    <div><div class="sub">Letzte Endpunkt-Kalibrierung</div><div class="motkal" id="motKal">–</div></div>
+  </div>
+  <div class="knoepfe">
+    <button class="primaer" data-c="mot kal">Endpunkt kalibrieren</button>
+    <button data-c="mot auf 5">Auf 5 mm</button>
+    <button data-c="mot auf 1">Auf 1 mm</button>
+    <button data-c="mot ab 1">Ab 1 mm</button>
+    <button data-c="mot ab 0.1">Ab 0,1 mm</button>
+    <button class="stopp" data-c="x" title="Taste Esc">STOPP</button>
+  </div>
+  <div class="sub" id="motParam">&nbsp;</div>
+</div>
+
 <div class="unten">
   <div class="karte"><div class="titel">Live-Statistik</div><div id="stat">warte auf Daten …</div></div>
   <div class="karte">
@@ -217,7 +234,35 @@ function verarbeiten(d){
   if(document.activeElement!==selRate)selRate.value=String(cfg.rate);
   flAngleichen(cfg.filter);
   if(!wsGesetzt){$("ws").value=String(d.ws);wsGesetzt=true;}
-  wertZeigen();statusZeigen();
+  wertZeigen();statusZeigen();motZeigen();
+}
+
+// ---------- Antrieb ----------
+const Z_TEXT={"Ueberlauf":"Überlauf","Rueckfahrt":"Rückfahrt"};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")befehl("x");});   // Esc = STOPP
+function motZeigen(){
+  const m=letzt&&letzt.mot;if(!m)return;
+  const z=Z_TEXT[m.z]||m.z;
+  let h='<span class="chip"><span class="punkt'+(m.alm?" aus":"")+'"></span>'+z+"</span>";
+  if(m.alm)h+='<span class="chip warn"><span class="warn">ALARM Treiber</span></span>';
+  if(!m.ok)h+='<span class="chip warn"><span class="warn">nicht eingerichtet</span></span>';
+  if(m.enam&&!m.ena)h+='<span class="chip warn"><span class="warn">Motorstrom aus</span></span>';
+  h+='<span class="chip">Last <b>'+f(m.last/1000,2)+"</b>kg</span>";
+  $("motStatus").innerHTML=h;
+  if(m.ok){
+    $("motPos").textContent=f(m.pos/m.spmm,3).replace(".",",")+" mm";
+    $("motPosSub").textContent=m.pos+" Schritte · "+(m.ref?"ab Werkzeug-Endpunkt":"relativ, noch nicht kalibriert")+
+      (m.stopp&&m.stopp!=="-"?" · letzter Stopp: "+m.stopp:"");
+  }else{
+    $("motPos").textContent="–";
+    $("motPosSub").textContent="Zuerst Schritte pro mm einstellen: mp spmm <Wert>";
+  }
+  $("motKal").innerHTML=m.kal?
+    "Kontakt "+f(m.kt/m.spmm,3).replace(".",",")+" mm unter dem Start<br>Endpunkt <b>+"+m.ke+" Schritte</b> bei <b>"+
+    f(m.kk/1000,2).replace(".",",")+" kg</b> ("+(m.kgr===2?"Maximalkraft erreicht":"Überlauf erreicht")+")":"noch keine";
+  $("motParam").textContent="Suche "+m.vs+" mm/s · Kontakt ab "+m.kg+" g Laständerung · Überlauf "+m.ue+
+    " Schritte · max. "+f(m.fmax/1000,1)+" kg · Hub "+m.hub+" mm";
+  document.querySelectorAll('#antriebKarte button[data-c^="mot"]').forEach(b=>{b.disabled=!!m.lauf||!m.ok;});
 }
 
 // ---------- Anzeigen ----------

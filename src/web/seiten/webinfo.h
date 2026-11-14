@@ -35,6 +35,7 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <a class="chip" href="#datenrate">Datenrate</a>
     <a class="chip" href="#tipps">Tipps</a>
     <a class="chip" href="#kalibrieren">Kalibrieren</a>
+    <a class="chip" href="#antrieb">Antrieb</a>
     <a class="chip" href="#befehle">Befehle</a>
   </nav>
 </div>
@@ -259,6 +260,69 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
   <p>Kennst du die Änderung in Counts schon, geht es auch direkt: <code>f &lt;Counts / Gramm&gt;</code>, z. B. <code>f 10.06</code>.</p>
 </div>
 
+<div class="karte" id="antrieb">
+  <div class="titel">Antrieb</div>
+  <h3>Closed-Loop-Schrittmotor mit HB808C</h3>
+  <p>Der Pico gibt Schritt- und Richtungsimpulse aus; Encoder und Regelkreis stecken im Treiber. Während jeder
+    Abwärtsfahrt prüft der Pico <strong>jeden einzelnen Messwert</strong> der Wägezelle und hält den Motor innerhalb
+    eines Schritts an, sobald Kontakt oder die Maximalkraft erreicht ist. Aufwärts darf der Motor immer fahren.</p>
+  <div class="tabelle"><table>
+    <tr><th>Pico</th><th>Treiber / Taster</th><th>Hinweis</th></tr>
+    <tr><td>GP2</td><td>PUL</td><td rowspan="3">Der HB808C braucht 4,5–28 V an den Eingängen. Über einen 5-V-Pegelwandler (z. B. 74AHCT125)
+      oder gemeinsame Anode an 5 V mit Transistor gegen GND anschließen; dann <code>mp inv 1</code>.</td></tr>
+    <tr><td>GP3</td><td>DIR</td></tr>
+    <tr><td>GP4</td><td>ENA (optional)</td></tr>
+    <tr><td>GP5</td><td>ALM (optional)</td><td>Alarmausgang des Treibers, z. B. bei Schleppfehler. Mit <code>mp alm 1</code> bzw. <code>2</code> aktivieren.</td></tr>
+    <tr><td>GP6</td><td>START-Taster gegen GND</td><td>Startet die Endpunkt-Kalibrierung.</td></tr>
+    <tr><td>GP7</td><td>STOPP-Taster gegen GND</td><td>Hält sofort an. Ersetzt keinen Not-Aus.</td></tr>
+  </table></div>
+
+  <h3>Einrichten</h3>
+  <ol>
+    <li><code>mp spmm &lt;Wert&gt;</code>: Schritte pro mm = Mikroschritte pro Umdrehung × Übersetzung / Spindelsteigung.
+      Beispiel: 1600 Schritte, direkt, 5 mm Steigung → <code>mp spmm 320</code>. Vorher bewegt sich der Motor nicht.</li>
+    <li>Waage kalibrieren und Datenrate auf 2000 SPS. Ohne kalibrierten Faktor und unter 500 SPS fährt der Antrieb nicht.</li>
+    <li>Richtung prüfen: <code>mot ab 1</code> muss nach unten fahren (Rechtslauf). Sonst <code>mp dir 0</code> bzw. <code>mp dir 1</code>.</li>
+    <li>Weg prüfen: <code>mot ab 10</code> mit dem Messschieber nachmessen, bei Abweichung <code>spmm</code> anpassen.</li>
+    <li>Stopp testen: langsam abwärts fahren und von Hand auf die Zelle drücken. Der Motor muss sofort stehen.</li>
+    <li>Mit <code>s</code> speichern.</li>
+  </ol>
+
+  <h3>Endpunkt kalibrieren</h3>
+  <p>Startet mit dem START-Taster, dem Knopf auf der Messseite oder <code>mot kal</code>. Das Werkzeug muss über dem Werkstück stehen.</p>
+  <ol>
+    <li>Langsam abwärts (<code>vsuch</code>, Standard 1 mm/s), höchstens über den Hub von 45 mm.</li>
+    <li>Steigt die Last um mehr als <code>kontakt</code> (Standard 100 g) gegenüber dem Wert vor der Fahrt, ist der
+      <strong>Werkzeug-Endpunkt</strong> erreicht. Er wird der neue Nullpunkt.</li>
+    <li>Weiter bis zum <strong>tatsächlichen Endpunkt</strong>: Kontakt + <code>ueber</code> Schritte (Standard 10), oder früher
+      bei <code>fmax</code> (Standard und Obergrenze 50 kg).</li>
+    <li>Zurück zur Startposition. Im Protokoll stehen Kontakttiefe, Endpunkt, Kraft am Endpunkt und die Steifigkeit in kg/mm.</li>
+  </ol>
+  <p>Ohne Lastanstieg im ganzen Hub bricht die Fahrt mit „kein Kontakt“ ab. Bei jedem Abbruch bleibt der Motor an der
+    Abbruchstelle stehen; mit <code>mot auf &lt;mm&gt;</code> wieder hochfahren.</p>
+  <div class="hinweis"><strong>Kraftreserve:</strong> Ein Nema-23-Motor an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken.
+    Die Kraftgrenze im Pico ist schnell, aber Software. Einen Not-Aus, der die Motorversorgung trennt, und einen mechanischen
+    Anschlag vorsehen. Die ersten Fahrten mit kleiner Grenze (<code>mp fmax 2000</code>) machen.</div>
+
+  <h3>Parameter</h3>
+  <div class="tabelle"><table>
+    <tr><th>Name</th><th>Bedeutung</th><th>Standard</th></tr>
+    <tr><td><code>spmm</code></td><td>Schritte pro mm, 0 = gesperrt</td><td>0</td></tr>
+    <tr><td><code>dir</code></td><td>DIR-Pegel für „ab“</td><td>1</td></tr>
+    <tr><td><code>inv</code></td><td>Ausgänge invertiert (gemeinsame Anode mit Transistor)</td><td>0</td></tr>
+    <tr><td><code>ena</code></td><td>0 unbenutzt, 1 Opto an = Motor aus, 2 Opto an = Motor ein</td><td>0</td></tr>
+    <tr><td><code>alm</code></td><td>0 aus, 1 Alarm bei LOW, 2 Alarm bei HIGH</td><td>0</td></tr>
+    <tr><td><code>vsuch</code></td><td>Geschwindigkeit Kontaktsuche und Überlauf (mm/s)</td><td>1</td></tr>
+    <tr><td><code>vfahrt</code></td><td>Geschwindigkeit Tippbetrieb und Rückfahrt (mm/s)</td><td>5</td></tr>
+    <tr><td><code>acc</code></td><td>Beschleunigung (mm/s²)</td><td>20</td></tr>
+    <tr><td><code>hub</code></td><td>maximaler Suchweg (mm, höchstens 45)</td><td>45</td></tr>
+    <tr><td><code>ueber</code></td><td>Schritte nach dem Kontakt</td><td>10</td></tr>
+    <tr><td><code>kontakt</code></td><td>Laständerung, die als Kontakt gilt (g)</td><td>100</td></tr>
+    <tr><td><code>fmax</code></td><td>Maximalkraft, Abwärtsfahrt stoppt sofort (g, höchstens 50 000)</td><td>50 000</td></tr>
+  </table></div>
+  <p>Die Schrittfrequenz liegt zwischen 16 Hz und 20 kHz. Ein Mikroschritt von 1600–3200 pro Umdrehung genügt beim Closed-Loop-Treiber.</p>
+</div>
+
 <div class="karte" id="befehle">
   <div class="titel">Befehle</div>
   <p>Eingabe im Feld unter dem Protokoll oder im seriellen Monitor (Zeilenende „Neue Zeile“). Dezimalkomma geht auch.</p>
@@ -275,11 +339,18 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <tr><td><code>s</code></td><td>Einstellungen dauerhaft speichern</td></tr>
     <tr><td><code>i</code></td><td>Status anzeigen</td></tr>
     <tr><td><code>m &lt;0..4&gt;</code></td><td>USB-Ausgabe: 0 aus, 1 lesbar, 2 CSV, 3 Plotter, 4 binär</td></tr>
+    <tr><td><code>mot</code></td><td>Antrieb: Status, Position, letzte Kalibrierung</td></tr>
+    <tr><td><code>mot kal</code></td><td>Endpunkt-Kalibrierung (wie START-Taster)</td></tr>
+    <tr><td><code>mot ab|auf &lt;mm&gt;</code></td><td>Tippbetrieb; <code>mot s &lt;n&gt;</code> = n Schritte (+ ab)</td></tr>
+    <tr><td><code>mot null|ein|aus</code></td><td>Position 0 setzen, Motorstrom ein bzw. aus</td></tr>
+    <tr><td><code>mot stop</code></td><td>Anhalten (auch <code>x</code>, Esc im Browser, STOPP-Taster)</td></tr>
+    <tr><td><code>mp [name wert]</code></td><td>Antrieb-Parameter anzeigen bzw. setzen</td></tr>
     <tr><td><code>wlan [an|aus]</code></td><td>WLAN-Status bzw. ein-/ausschalten (wieder an nur über USB)</td></tr>
+    <tr><td><code>wd</code></td><td>Watchdog-Status und Grund des letzten Neustarts (<code>wd test 0|1</code> hängt einen Kern zum Test auf und löst einen Neustart aus)</td></tr>
     <tr><td><code>c</code></td><td>Selbstkalibrierung des ADC (Offset und Verstärkung)</td></tr>
     <tr><td><code>d</code></td><td>Register des ADS1256 anzeigen</td></tr>
     <tr><td><code>init</code></td><td>ADS1256 neu starten</td></tr>
-    <tr><td><code>x</code></td><td>Laufenden Auftrag abbrechen</td></tr>
+    <tr><td><code>x</code></td><td>Antrieb anhalten bzw. laufenden Auftrag abbrechen</td></tr>
     <tr><td><code>w ja</code></td><td>Werkseinstellungen (löscht Tara und Kalibrierung)</td></tr>
     <tr><td><code>h</code></td><td>Hilfe im Protokoll</td></tr>
   </table></div>

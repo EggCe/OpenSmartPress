@@ -80,6 +80,14 @@ color:#cde6cd;background:#030503;border:1px solid var(--rand);border-radius:12px
 .plotkopf .titel{margin-bottom:6px}
 .plotkopf .sub{margin:0 0 6px;font-size:12px}
 #plot{cursor:ns-resize}
+button:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+button.stopp{background:var(--fehler);border-color:var(--fehler);color:#fff;font-weight:800;letter-spacing:.5px;
+padding:7px 22px;box-shadow:0 0 16px rgba(255,92,92,.35)}
+button.stopp:hover{background:#ff7676;border-color:#ff7676;box-shadow:0 0 20px rgba(255,92,92,.5)}
+.motraster{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.motwert{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.motkal{font-size:14px;line-height:1.5;margin-top:4px}
+.motkal b{color:var(--akzent)}
 
 /* Links (beide Seiten) */
 a{color:var(--akzent);text-decoration:none}

@@ -18,7 +18,7 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 - **Rauschanalyse**: Standardabweichung in Counts, µV und Gramm, effektive und rauschfreie Auflösung,
   Streuung nach Mittelung auf 10 SPS. Mit `nv` werden mehrere Datenraten automatisch verglichen.
 - **Überwachung**: Warnung ab 100 % Nennlast, Alarm ab 120 % (LED), Erkennung eines übersteuerten ADC.
-- **PC-Programm** `waegezelle_plot.py` für die Aufzeichnung jedes einzelnen Messwerts über USB.
+- **PC-Programm** `tools/waegezelle_plot.py` für die Aufzeichnung jedes einzelnen Messwerts über USB.
 - Einstellungen (Tara, Faktor, Glättung, Datenrate) bleiben im Flash gespeichert.
 
 ## Hardware
@@ -31,6 +31,8 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 | Brückenspeisung | 5,00 V aus einem LT3042 (rauscharmer Linearregler) |
 
 ### Verdrahtung
+
+Plan als Grafik: [docs/Verdrahtung_PicoWH_ADS1256.svg](docs/Verdrahtung_PicoWH_ADS1256.svg)
 
 | Pico | ADS1256 | Funktion |
 |---|---|---|
@@ -50,6 +52,23 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 | Weiß | AIN1 |
 
 Messung differenziell AIN0–AIN1, Eingangspuffer an, PGA 64: Messbereich ±78,125 mV, 1 Count = 9,313 nV.
+
+### Antrieb
+
+Nema-23-Closed-Loop-Schrittmotor mit Treiber **HB808C** (PUL/DIR, 24–80 V, Signaleingänge 4,5–28 V), Hub 45 mm,
+„ab“ = Rechtslauf.
+
+| Pico | Anschluss | Hinweis |
+|---|---|---|
+| GP2 | PUL | über 5-V-Pegelwandler (z. B. 74AHCT125) oder Transistor, 3,3 V reichen nicht |
+| GP3 | DIR | wie PUL |
+| GP4 | ENA | optional (`mp ena`) |
+| GP5 | ALM | optional, Alarmausgang des Treibers (`mp alm`) |
+| GP6 | START-Taster gegen GND | startet die Endpunkt-Kalibrierung |
+| GP7 | STOPP-Taster gegen GND | hält sofort an |
+
+Ein Nema 23 an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken. Die Kraftgrenze im Pico ist schnell,
+ersetzt aber keinen **Not-Aus**, der die Motorversorgung trennt, und keinen mechanischen Anschlag.
 
 **Für wenig Rauschen:** ADS1256-Modul ebenfalls aus dem LT3042 versorgen, Sternmasse am AGND des ADS1256,
 Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des WLAN-Funks kannst du mit
@@ -109,11 +128,35 @@ Im Eingabefeld der Weboberfläche oder im seriellen Monitor. `h` zeigt alle Befe
 | `nv [s] [sps …]` | Rauschvergleich mehrerer Datenraten |
 | `m <0..4>` | USB-Ausgabe: 0 aus, 1 lesbar, 2 CSV, 3 Arduino-Plotter, 4 binär |
 | `wlan [an\|aus]` | WLAN-Status bzw. ein-/ausschalten |
+| `wd` / `wd test 0\|1` | Watchdog-Status / Kern 0 bzw. 1 zum Test aufhängen (löst Neustart aus) |
 | `i` / `d` / `c` | Status / Register des ADS1256 / Selbstkalibrierung des ADC |
 | `s` | Einstellungen im Flash speichern |
 | `x` | Laufenden Auftrag abbrechen |
 | `init` | ADS1256 neu initialisieren |
 | `w ja` | Werkseinstellungen (löscht Tara und Kalibrierung) |
+
+### Antrieb einrichten und Endpunkt kalibrieren
+
+1. `mp spmm <Schritte pro mm>` setzen (Mikroschritte pro Umdrehung × Übersetzung / Spindelsteigung, z. B. 320).
+   Vorher bewegt sich der Motor nicht.
+2. Waage kalibriert, Datenrate 2000 SPS. Unter 500 SPS oder ohne kalibrierten Faktor fährt der Antrieb nicht.
+3. Richtung prüfen: `mot ab 1` muss nach unten fahren, sonst `mp dir 0`/`1`. Weg mit `mot ab 10` nachmessen.
+4. Erste Fahrten mit kleiner Kraftgrenze: `mp fmax 2000`. Mit `s` speichern.
+5. **Endpunkt-Kalibrierung** mit dem START-Taster, dem Webknopf oder `mot kal`:
+   - langsam abwärts, bis die Last um mehr als 100 g steigt: **Werkzeug-Endpunkt** = neuer Nullpunkt,
+   - weiter bis Kontakt + 10 Schritte oder bis 50 kg (was zuerst kommt): **tatsächlicher Endpunkt**,
+   - zurück zur Startposition; Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
+
+Während jeder Abwärtsfahrt prüft Kern 1 jeden Messwert im ADC-Interrupt und stoppt innerhalb eines Schritts.
+Stopp jederzeit mit `x`, der Esc-Taste im Browser, dem STOPP-Knopf oder dem STOPP-Taster.
+
+| Befehl | Funktion |
+|---|---|
+| `mot` | Status, Position, letzte Kalibrierung |
+| `mot kal` | Endpunkt-Kalibrierung |
+| `mot ab <mm>` / `mot auf <mm>` / `mot s <n>` | Tippbetrieb |
+| `mot null` / `mot ein` / `mot aus` | Position 0 setzen, Motorstrom ein/aus |
+| `mp` / `mp <name> <wert>` | Parameter anzeigen/setzen: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax` |
 
 ### Aufzeichnung am PC über USB
 
@@ -122,8 +165,8 @@ verwenden. Es schaltet die Firmware in den Binärmodus und zeichnet auf Wunsch i
 
 ```
 pip install pyserial numpy pyqtgraph PyQt5
-python waegezelle_plot.py                       # Port wird automatisch gesucht
-python waegezelle_plot.py --port COM5 --rate 2000 --fenster 10
+python tools/waegezelle_plot.py                 # Port wird automatisch gesucht
+python tools/waegezelle_plot.py --port COM5 --rate 2000 --fenster 10
 ```
 
 Der serielle Monitor muss dabei geschlossen sein. Weboberfläche und PC-Programm können gleichzeitig laufen.
@@ -147,20 +190,42 @@ Die beiden Kerne des RP2040 teilen sich die Arbeit:
 
 | Kern | Aufgaben |
 |---|---|
-| Kern 1 | Alle Zugriffe auf den ADS1256: Initialisierung, Datenrate, Kalibrierung, DRDY-Interrupt. Jeder Messwert kommt mit laufender Nummer und Zeitstempel in einen Ringpuffer. |
+| Kern 1 | Alle Zugriffe auf den ADS1256: Initialisierung, Datenrate, Kalibrierung, DRDY-Interrupt. Jeder Messwert kommt mit laufender Nummer und Zeitstempel in einen Ringpuffer. Außerdem der Antrieb: Schritterzeugung per PWM, Rampen, Ablauf der Endpunkt-Kalibrierung, Kraftüberwachung im ADC-Interrupt, Taster und Alarmeingang. |
 | Kern 0 | Verarbeitung (Glättung, Statistik, Überwachung, Tara/Kalibrierung), USB, WLAN und Webserver. Aufträge an den ADC gehen über ein Postfach an Kern 1. |
 
 WLAN-Code darf im arduino-pico-Core ohne FreeRTOS nur auf Kern 0 laufen, daher diese Aufteilung.
 
-| Datei | Inhalt |
-|---|---|
-| `Waegezelle_Test.ino` | Hauptprogramm: Kernaufteilung, Verarbeitung, Befehle, WLAN, Webserver |
-| `ADS1256.h` / `.cpp` | Treiber: RDATAC-Dauerbetrieb, Interrupt, Ringpuffer, Lückenerkennung |
-| `webui.h` | Messseite (HTML/JavaScript) |
-| `webinfo.h` | Hilfeseite |
-| `webstil.h` | Gemeinsames Stylesheet (`/stil.css`) |
-| `wlan_zugang.beispiel.h` | Vorlage für die WLAN-Zugangsdaten |
-| `waegezelle_plot.py` | PC-Programm für Live-Anzeige und Aufzeichnung über USB |
+Der Programmcode liegt in `src/`; die Arduino IDE übersetzt diesen Ordner automatisch mit.
+
+```
+Waegezelle_Test/
+├── Waegezelle_Test.ino        setup/loop (Kern 0) und setup1/loop1 (Kern 1)
+├── wlan_zugang.beispiel.h     Vorlage für wlan_zugang.h (WLAN-Zugangsdaten)
+├── src/
+│   ├── konfig.h               Pins, Referenz, Nennlast, Grenzwerte
+│   ├── adc.*                  ADS1256-Objekt, Postfach Kern 0 → Kern 1, Init, Datenrate
+│   ├── verarbeitung.*         Messwerte abholen, Überlast-/Übersteuerungswarnung, DRDY-Timeout
+│   ├── filter.*               Glättung (gleitender Mittelwert über eine Zeit)
+│   ├── statistik.h            Welford-Statistik, Ergebnis einer Rauschmessung
+│   ├── auftraege.*            Tara, Kalibrierung, Rauschanalyse, Rauschvergleich
+│   ├── usb_ausgabe.*          Ausgabemodi lesbar/CSV/Plotter/binär, #CFG-Zeile
+│   ├── befehle.*              Befehle aus seriellem Monitor und Weboberfläche
+│   ├── motor.*                Antrieb auf Kern 0: Parameter, Sicherheitsprüfungen, Meldungen
+│   ├── einstellungen.*        Einstellungen im Flash (Tara, Faktor, Antrieb)
+│   ├── meldung.*              Meldungen an USB und Web-Protokoll
+│   ├── pruefsumme.*           CRC-32 (Flash) und CRC-8 (Binärrahmen)
+│   ├── watchdog.*             Hardware-Watchdog für Kern 0, Herzschlag-Überwachung von Kern 1
+│   ├── treiber/
+│   │   ├── ADS1256.*          RDATAC-Dauerbetrieb, Interrupt, Ringpuffer, Lückenerkennung
+│   │   └── Antrieb.*          HB808C: PWM-Schritte, Rampen, Endpunkt-Kalibrierung, Kraftüberwachung
+│   └── web/
+│       ├── wlan.*             WLAN-Verbindung, mDNS
+│       ├── webserver.*        HTTP-Routen, JSON für /daten
+│       ├── livedaten.*        Diagrammpunkte und Live-Statistik
+│       └── seiten/            webui.h (Messseite), webinfo.h (Hilfe), webstil.h (/stil.css)
+├── tools/waegezelle_plot.py   PC-Programm für Live-Anzeige und Aufzeichnung über USB
+└── docs/                      Verdrahtungsplan
+```
 
 ### Datenformate
 
@@ -196,6 +261,9 @@ Gramm = (Counts − tara) / faktor
   Datenrate ändern.
 - Beim Speichern (`s`) und bei Ratenwechseln gehen kurz Messwerte verloren; sie werden gezählt.
 - `wlan aus` lässt sich nur über USB rückgängig machen.
+- **Watchdog:** Hängt Kern 0 länger als 8 s, startet der Pico neu. Kern 1 meldet sich ständig mit einem
+  Herzschlag; bleibt er länger als 1 s aus, sperrt Kern 0 sofort die Schrittimpulse und startet neu. Nach so einem
+  Neustart steht eine Warnung im Protokoll, `wd` zeigt den Grund. Ungespeicherte Tara/Kalibrierung geht dabei verloren.
 
 ## Lizenz
 
