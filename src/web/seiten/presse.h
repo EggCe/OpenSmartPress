@@ -26,12 +26,66 @@ static const char PRESSE_HTML[] = R"PRESSE(<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pressen</title>
 <link rel="stylesheet" href="/stil.css">
+<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";}catch(e){}</script>
 <style>
-.pgrid{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:0 14px}
+main{max-width:none;margin:0;padding:14px 16px 28px;min-width:0}
+/* Rahmen: Menü links, Inhalt rechts */
+.rahmen{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+body.eng .rahmen{grid-template-columns:64px minmax(0,1fr)}
+.menue{position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:16px;padding:16px 12px;
+border-right:1px solid var(--rand);background:var(--menue);backdrop-filter:blur(8px)}
+.menue .kopf{display:flex;align-items:center;gap:10px}
+.menue .bild{flex:none;display:block;filter:drop-shadow(0 0 10px var(--glow))}
+.menue h1{font-size:13px;line-height:1.25;color:var(--leise);font-weight:600}
+.menue h1 em{display:block;font-size:16px;font-weight:750}
+.menue h1 span{display:block;font-size:12px}
+.menue nav{display:flex;flex-direction:column;gap:2px}
+.menue nav a{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:10px;color:var(--leise);font-weight:600;font-size:13px}
+.menue nav a:hover{background:var(--bg2);color:var(--text);text-decoration:none}
+.menue nav a.aktiv{color:var(--akzent);background:rgba(var(--ar),.08)}
+.menue nav a::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--rand2);flex:none}
+.menue nav a.aktiv::before{background:var(--akzent);box-shadow:0 0 6px var(--akzent)}
+.grp{font-size:10.5px;font-weight:650;letter-spacing:.9px;text-transform:uppercase;color:var(--leise);opacity:.75;padding:0 10px;margin-bottom:5px}
+.menue .status{flex-direction:column;align-items:flex-start;padding:0 6px}
+.fuss{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px}
+#einklappen{padding:3px 12px;font-size:16px;line-height:1.2}
+body.eng .menue{padding:16px 8px;align-items:center}
+body.eng .menue .text,body.eng .menue .block{display:none}
+body.eng .fuss{justify-content:center}
+@media (max-width:900px){
+  .rahmen,body.eng .rahmen{grid-template-columns:minmax(0,1fr)}
+  .menue,body.eng .menue{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 18px;
+    border-right:0;border-bottom:1px solid var(--rand);padding:10px 16px}
+  body.eng .menue .text{display:block}
+  body.eng .menue .block{display:flex}
+  .menue nav{flex-direction:row;flex-wrap:wrap}
+  .menue .status{flex-direction:row;flex-wrap:wrap}
+  .menue .grp,#einklappen{display:none}
+  .fuss{margin-top:0}
+  .menue > *{min-width:0}
+}
+/* Bühne: Steuerung + Diagramm auf dem ersten Bildschirm */
+.buehne{display:grid;grid-template-columns:minmax(290px,350px) minmax(0,1fr);gap:14px;height:calc(100vh - 28px);min-height:540px}
+.buehne > .karte{margin-top:0;display:flex;flex-direction:column;min-height:0}
+.steuer{overflow:auto}
+.plotfl{position:relative;flex:1 1 0;min-height:0;margin-top:8px}
+#plot{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
+.legende{font-size:11.5px;margin-top:6px}
+@media (max-width:900px){.buehne{grid-template-columns:1fr;height:auto;min-height:0}.plotfl{flex:none;height:62vh;min-height:300px}}
+.live{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:10px 12px;margin-bottom:6px;
+border:1px solid var(--rand2);border-radius:14px;background:var(--bg2)}
+.live .gross{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;line-height:1.05}
+.live .gross i{font-size:15px;font-style:italic;color:var(--akzent);margin-left:6px}
+.live .neben{text-align:right;font-size:13px;color:var(--leise);font-variant-numeric:tabular-nums}
+.live .neben b{color:var(--text)}
+.abschnitt{display:flex;align-items:center;gap:12px;margin:26px 0 0;color:var(--leise);font-size:11px;font-weight:650;
+letter-spacing:.9px;text-transform:uppercase}
+.abschnitt::after{content:"";flex:1;height:1px;background:var(--rand)}
+.pgrid{display:grid;grid-template-columns:minmax(320px,440px) minmax(0,1fr);gap:0 14px}
 .pgrid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
-.pgrid3{display:grid;grid-template-columns:1fr minmax(300px,420px);gap:0 14px}
+.pgrid3{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:0 14px}
 @media (max-width:900px){.pgrid,.pgrid2,.pgrid3{grid-template-columns:1fr}}
-.schritt{display:grid;grid-template-columns:30px 1fr;gap:4px 10px;padding:9px 0;border-bottom:1px solid var(--rand)}
+.schritt{display:grid;grid-template-columns:30px 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--rand)}
 .schritt:last-of-type{border-bottom:0}
 .schritt .nr{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;
 border:1px solid var(--rand2);color:var(--leise)}
@@ -40,7 +94,6 @@ border:1px solid var(--rand2);color:var(--leise)}
 .schritt .sub{margin:0}
 .schritt .knoepfe{margin-top:6px}
 button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
-#plot{height:480px;cursor:crosshair}
 #trend{width:100%;height:240px;display:block;cursor:pointer}
 .details{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-variant-numeric:tabular-nums}
 .details dt{color:var(--leise)}
@@ -49,9 +102,10 @@ button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
 .details .gruppe{grid-column:1/-1;color:var(--akzent);font-size:11px;font-weight:650;letter-spacing:.8px;
 text-transform:uppercase;margin-top:6px;border-bottom:1px solid var(--rand)}
 .scroll{max-height:360px;overflow:auto}
-tr.sel td{background:rgba(58,226,58,.12)}
+#bPressungen .scroll{max-height:620px}
+tr.sel td{background:rgba(var(--ar),.12)}
 tbody tr{cursor:pointer}
-tbody tr:hover td{background:rgba(58,226,58,.06)}
+tbody tr:hover td{background:rgba(var(--ar),.06)}
 .balken{height:8px;border-radius:6px;background:var(--bg2);border:1px solid var(--rand2);overflow:hidden;margin-top:6px}
 .balken > div{height:100%;background:var(--akzent)}
 .form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
@@ -65,24 +119,52 @@ dialog{background:var(--karte);color:var(--text);border:1px solid var(--rand2);b
 max-width:min(560px,calc(100vw - 32px));box-shadow:0 0 30px var(--glow)}
 dialog::backdrop{background:rgba(0,0,0,.65)}
 dialog input[type=number]{width:110px}
-.simkopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-</style></head><body><main>
-<header>
-  <div class="marke">
-    <div class="logo"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#031003" stroke-width="2.2"
-      stroke-linecap="round" stroke-linejoin="round"><polyline points="1,11 5,11 7.5,4 11,16 13.5,8 15.5,11 19,11"/></svg></div>
-    <h1>EcklC <em>OpenSmartPress</em> <span>Pressen</span></h1>
+.simkopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+</style></head><body><div class="rahmen">
+<aside class="menue">
+  <div class="kopf">
+    <svg class="bild" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--akzent)"/><stop offset="1" style="stop-color:var(--akzent2)"/></linearGradient></defs>
+      <rect width="40" height="40" rx="11" fill="url(#lg)"/>
+      <g style="fill:var(--akzentText)">
+        <rect x="17.5" y="5" width="5" height="9" rx="1"/>
+        <path d="M10 14h20v4.5a1.5 1.5 0 0 1-1.5 1.5h-17a1.5 1.5 0 0 1-1.5-1.5z"/>
+        <rect x="14" y="25" width="12" height="6" rx="1.5"/>
+        <rect x="7" y="32" width="26" height="3" rx="1.5"/>
+      </g>
+      <path d="M15 22.5l5 0M25 22.5l-5 0" style="stroke:var(--akzentText)" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+    </svg>
+    <h1 class="text">EcklC<em>OpenSmartPress</em><span>Pressen</span></h1>
   </div>
-  <div class="kopfrechts">
+  <nav class="block">
+    <div class="grp">Seiten</div>
+    <a class="aktiv" href="#oben">Pressen</a>
+    <a href="/">Messseite</a>
+    <a href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md#pressen" target="_blank" rel="noopener">Hilfe ↗</a>
+  </nav>
+  <div class="block">
+    <div class="grp">Status</div>
     <div class="status" id="status">verbinde …</div>
-    <a class="chip" href="/">Messseite</a>
-    <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md#pressen" target="_blank" rel="noopener">Hilfe</a>
   </div>
-</header>
+  <nav class="block">
+    <div class="grp">Auswertung</div>
+    <a href="#bPressung">Pressung &amp; Liste</a>
+    <a href="#bTrend">Trend &amp; Einstellungen</a>
+    <a href="#bStatistik">Sitzungsstatistik</a>
+    <a href="#sitzungen">Sitzungen</a>
+    <a href="#bParameter">Parameter &amp; Protokoll</a>
+  </nav>
+  <div class="fuss"><div class="themen block" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div><button id="einklappen" title="Menü ein-/ausklappen">«</button></div>
+</aside>
+<main id="oben">
 
-<div class="pgrid">
-  <div class="karte glow">
+<section class="buehne">
+  <div class="karte glow steuer">
     <div class="titel">Ablauf</div>
+    <div class="live">
+      <div><div class="sub" style="margin:0">Kraft</div><div class="gross" id="lvKraft">–</div></div>
+      <div class="neben"><div id="lvZust">–</div><div>Pos. <b id="lvPos">–</b> mm</div></div>
+    </div>
     <div class="simkopf">
       <label title="Ohne Motor: die Kraft wird aus der Position berechnet">
         <input type="checkbox" id="sim"> Simulation ohne Motor</label>
@@ -106,30 +188,38 @@ dialog input[type=number]{width:110px}
       <div class="knoepfe"><button class="primaer start" id="start" disabled>START</button>
         <button class="stopp" data-c="x" title="Taste Esc">STOPP</button></div></div></div>
   </div>
+
+  <div class="karte glow">
+    <div class="plotkopf"><div class="titel">Kraft über Weg</div>
+      <div class="sub" id="maus">Klick: Pressung auswählen · Mausrad: zoomen (Umschalt: nur Weg) · Ziehen: verschieben · Doppelklick: alles</div></div>
+    <div class="leiste">
+      <label>Weg <select id="xmodus"><option value="kontakt">ab Kontakt</option><option value="ende">ab Werkzeug-Endpunkt</option></select></label>
+      <label>Krafteinheit <select id="einheit"><option value="N">N</option><option value="kg">kg</option>
+        <option value="lbs">lbs</option></select></label>
+      <label>Anzeigen <select id="zeige"><option value="0">alle</option><option value="10">letzte 10</option>
+        <option value="25">letzte 25</option><option value="50">letzte 50</option></select></label>
+      <label><input type="checkbox" id="abbr"> Abbrüche zeigen</label>
+      <label><input type="checkbox" id="nurKontakt" checked> ab Kontakt zoomen</label>
+    </div>
+    <div class="plotfl" id="plotfl"><canvas id="plot"></canvas></div>
+    <div class="sub legende"><span class="fl" style="background:var(--akzent)"></span>Pressungen ·
+      <span class="fl" style="background:var(--hell)"></span>Auswahl mit Plateau-Gerade (Fenster schattiert), ● Fügekraft, ▲ Einführspitze,
+      ✕ größter Kraftabfall · <span class="fl" style="background:rgb(var(--wr))"></span>Rissverdacht / laufende Pressung ·
+      <span class="fl" style="background:rgb(var(--fr))"></span>Abbruch</div>
+  </div>
+</section>
+
+<div class="abschnitt">Auswertung</div>
+
+<div class="pgrid" id="bPressung">
   <div class="karte">
     <div class="plotkopf"><div class="titel" id="detTitel">Pressung</div><div class="sub" id="detSub"></div></div>
     <dl class="details" id="details"><dt>Noch keine Pressung ausgewählt.</dt><dd></dd></dl>
   </div>
+  <div class="karte" id="bPressungen"><div class="titel">Pressungen</div><div class="scroll"><table id="tab"></table></div></div>
 </div>
 
-<div class="karte glow">
-  <div class="plotkopf"><div class="titel">Kraft über Weg</div>
-    <div class="sub" id="maus">Klick: Pressung auswählen · Mausrad: zoomen (Umschalt: nur Weg) · Ziehen: verschieben · Doppelklick: alles</div></div>
-  <div class="leiste">
-    <label>Weg <select id="xmodus"><option value="kontakt">ab Kontakt</option><option value="ende">ab Werkzeug-Endpunkt</option></select></label>
-    <label>Krafteinheit <select id="einheit"><option value="N">N</option><option value="kg">kg</option>
-      <option value="lbs">lbs</option></select></label>
-    <label>Anzeigen <select id="zeige"><option value="0">alle</option><option value="10">letzte 10</option>
-      <option value="25">letzte 25</option><option value="50">letzte 50</option></select></label>
-    <label><input type="checkbox" id="abbr"> Abbrüche zeigen</label>
-    <label><input type="checkbox" id="nurKontakt" checked> ab Kontakt zoomen</label>
-  </div>
-  <div class="sub">grün: Pressungen · hell: Auswahl mit Plateau-Gerade (Fenster schattiert), ● Fügekraft, ▲ Einführspitze,
-    ✕ größter Kraftabfall · orange: Rissverdacht · gelb: laufende Pressung · rot: Abbruch</div>
-  <canvas id="plot"></canvas>
-</div>
-
-<div class="pgrid3">
+<div class="pgrid3" id="bTrend">
   <div class="karte">
     <div class="plotkopf"><div class="titel">Trend über die Pressungen</div>
       <label>Kennwert <select id="trendWert"></select></label></div>
@@ -152,10 +242,9 @@ dialog input[type=number]{width:110px}
   </div>
 </div>
 
-<div class="pgrid2">
-  <div class="karte"><div class="titel">Sitzungsstatistik</div><div class="sub" id="statSub"></div><div class="scroll" id="stat"></div></div>
-  <div class="karte"><div class="titel">Pressungen</div><div class="scroll"><table id="tab"></table></div></div>
-</div>
+<div class="karte" id="bStatistik"><div class="titel">Sitzungsstatistik</div><div class="sub" id="statSub"></div><div class="scroll" id="stat"></div></div>
+
+<div class="abschnitt">Verwaltung</div>
 
 <div class="karte" id="sitzungen">
   <div class="plotkopf"><div class="titel">Sitzungen</div><div class="sub" id="speicher"></div></div>
@@ -169,7 +258,7 @@ dialog input[type=number]{width:110px}
   <div class="scroll"><table id="liste"></table></div>
 </div>
 
-<div class="pgrid2">
+<div class="pgrid2" id="bParameter">
   <div class="karte">
     <div class="titel">Pressparameter</div>
     <div class="leiste">
@@ -210,7 +299,7 @@ dialog input[type=number]{width:110px}
   <div class="sub">Ein geänderter Werkzeugabstand setzt das virtuelle Werkzeug neu: danach Hub kalibrieren.
     Anfahrpunkt und Haltezeit stehen unter „Pressparameter“.</div>
 </dialog>
-</main>
+</main></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
@@ -622,7 +711,11 @@ function verarbeiten(d){
 }
 function statusZeigen(){
   const el=$("status");
-  if(!online||!S){el.innerHTML='<span class="chip warn"><span class="punkt aus"></span>keine Verbindung</span>';return;}
+  if(!online||!S){el.innerHTML='<span class="chip warn"><span class="punkt aus"></span>keine Verbindung</span>';
+    $("lvKraft").textContent="–";$("lvZust").textContent="keine Verbindung";$("lvPos").textContent="–";return;}
+  $("lvKraft").innerHTML=fmt(kr(S.kraft),E.d+1)+'<i>'+E.n+'</i>';
+  $("lvZust").innerHTML=(S.alarm?'<span class="warn">ALARM</span> · ':'')+(S.sim?'<span class="warn">Simulation</span> · ':'')+esc(S.zust);
+  $("lvPos").textContent=S.pos!==null?fmt(S.pos,3):"–";
   el.innerHTML='<span class="chip"><span class="punkt'+(S.ok?'':' aus')+'"></span>'+fmt(S.rate,0)+' SPS</span>'+
     '<span class="chip">'+esc(S.zust)+'</span>'+
     (S.pos!==null?'<span class="chip">Pos. '+fmt(S.pos,3)+' mm</span>':'')+
@@ -791,7 +884,7 @@ function zeichnen(){
   // Plateaufenster der Auswahl schattieren
   if(a&&a.x&&isFinite(a.a.p0)){
     const off=versatz(a)-(a.k.kontaktMm||0);           // Weg ab Kontakt -> Anzeige
-    ctx.fillStyle="rgba(58,226,58,.07)";
+    ctx.fillStyle="rgba("+st.getPropertyValue("--ar")+",.07)";
     ctx.fillRect(X(a.a.p0-off),T,X(a.a.p1-off)-X(a.a.p0-off),ph);
   }
   if(b.x0<0&&b.x1>0){ctx.setLineDash([5,5]);ctx.strokeStyle=st.getPropertyValue("--linie");ctx.beginPath();ctx.moveTo(X(0),T);ctx.lineTo(X(0),T+ph);ctx.stroke();ctx.setLineDash([]);}
@@ -800,22 +893,23 @@ function zeichnen(){
     for(let i=0;i<y.length;i++){if(!isFinite(y[i]))continue;const px=X(x[i]-off),py=Y(y[i]*E.f);if(auf)ctx.lineTo(px,py);else{ctx.moveTo(px,py);auf=true;}}
     ctx.stroke();ctx.setLineDash([]);};
   const neueste=Math.max(0,...ks.map(p=>p.k.nr));
+  const ar=st.getPropertyValue("--ar"),wr=st.getPropertyValue("--wr"),fr=st.getPropertyValue("--fr"),hell=st.getPropertyValue("--hell");
   for(const p of ks){
     if(p.k.nr===auswahl)continue;
-    const farbe=p.k.status?"rgba(255,92,92,.55)":p.a.riss?"rgba(255,176,32,.8)":p.k.nr===neueste?"rgba(58,226,58,.85)":"rgba(58,226,58,.28)";
+    const farbe="rgba("+(p.k.status?fr+",.55":p.a.riss?wr+",.8":p.k.nr===neueste?ar+",.85":ar+",.28")+")";
     linie(p.x,p.y,versatz(p),farbe,p.k.nr===neueste?1.6:1.1,!!p.k.status);
   }
   if(a&&a.x&&isFinite(versatz(a))){
     const off=versatz(a),ok=a.k.kontaktMm||0,sx=v=>X(v+ok-off);   // sx: Weg ab Kontakt -> Pixel
     const ax=a.rx||a.x,ay=a.ry||a.y;                                  // Auswahl in voller Auflösung
-    linie(ax,ay,off,"#ffffff",2.4,false);
+    linie(ax,ay,off,hell,2.4,false);
     const aa=a.a;
     if(isFinite(aa.steigung)){                                       // Plateau-Gerade
       ctx.strokeStyle=st.getPropertyValue("--akzent");ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();
       ctx.moveTo(sx(aa.p0),Y((aa.achse+aa.steigung*aa.p0)*E.f));ctx.lineTo(sx(aa.p1),Y((aa.achse+aa.steigung*aa.p1)*E.f));
       ctx.stroke();ctx.setLineDash([]);
     }
-    ctx.fillStyle="#ffffff";
+    ctx.fillStyle=hell;
     if(isFinite(aa.fuegeN)){ctx.beginPath();ctx.arc(sx(aa.fuegeMm),Y(aa.fuegeN*E.f),4.5,0,7);ctx.fill();}
     if(isFinite(aa.spitzeN)){const px=sx(aa.spitzeMm),py=Y(aa.spitzeN*E.f);
       ctx.beginPath();ctx.moveTo(px,py-9);ctx.lineTo(px-5,py-2);ctx.lineTo(px+5,py-2);ctx.closePath();ctx.fill();}
@@ -823,7 +917,7 @@ function zeichnen(){
       let fy=NaN;
       for(let i=0;i<ax.length;i++)if(isFinite(ay[i])&&ax[i]-ok>=aa.abfallMm){fy=ay[i];break;}
       if(isFinite(fy)){const px=sx(aa.abfallMm),qy=Y(fy*E.f);
-        ctx.strokeStyle=aa.riss?st.getPropertyValue("--fehler"):"#ffffff";ctx.lineWidth=2;
+        ctx.strokeStyle=aa.riss?st.getPropertyValue("--fehler"):hell;ctx.lineWidth=2;
         ctx.beginPath();ctx.moveTo(px-5,qy-5);ctx.lineTo(px+5,qy+5);ctx.moveTo(px+5,qy-5);ctx.lineTo(px-5,qy+5);ctx.stroke();}
     }
   }
@@ -865,6 +959,21 @@ cv.addEventListener("pointerup",e=>{
 cv.addEventListener("pointercancel",()=>{zieh=null;});
 cv.addEventListener("dblclick",()=>{ansicht=null;neuZeichnen=true;});
 window.addEventListener("resize",()=>{neuZeichnen=true;});
+if(window.ResizeObserver)new ResizeObserver(()=>{neuZeichnen=true;}).observe($("plotfl"));
+
+// ---------- Farbschema (gilt für beide Seiten, im Browser gespeichert) ----------
+function themaSetzen(t){
+  document.documentElement.dataset.thema=t;
+  try{localStorage.setItem("wz_thema",t);}catch(e){}
+  document.querySelectorAll(".themen button").forEach(b=>b.classList.toggle("aktiv",b.dataset.t===t));
+}
+document.querySelectorAll(".themen button").forEach(b=>b.onclick=()=>{themaSetzen(b.dataset.t);neuZeichnen=true;});
+themaSetzen(document.documentElement.dataset.thema||"");
+
+// ---------- Menü links ein-/ausklappen (mehr Platz für das Diagramm) ----------
+function menueEng(eng){document.body.classList.toggle("eng",eng);$("einklappen").textContent=eng?"»":"«";neuZeichnen=true;}
+menueEng(!!lsLesen("wz_menueEng",false));
+$("einklappen").onclick=()=>{const eng=!document.body.classList.contains("eng");lsSchreiben("wz_menueEng",eng);menueEng(eng);};
 
 // ---------- Trend über die Pressungen ----------
 const tcv=$("trend"),tctx=tcv.getContext("2d");
@@ -884,7 +993,7 @@ function trendZeichnen(){
   const {w,h}=leinwand(tctx);
   const {m,pk}=trendPunkte();
   tgeo=null;
-  if(!m||!pk.length){tctx.fillStyle="#93a393";tctx.font="13px system-ui,sans-serif";tctx.fillText("noch keine ausgewerteten Pressungen",70,40);return;}
+  if(!m||!pk.length){tctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--leise");tctx.font="13px system-ui,sans-serif";tctx.fillText("noch keine ausgewerteten Pressungen",70,40);return;}
   const n=pk.length,mw=pk.reduce((a,q)=>a+q.v,0)/n,s=n>1?Math.sqrt(pk.reduce((a,q)=>a+(q.v-mw)*(q.v-mw),0)/(n-1)):0;
   let y0=Math.min(...pk.map(q=>q.v)),y1=Math.max(...pk.map(q=>q.v));
   if(n>=3){y0=Math.min(y0,mw-3*s);y1=Math.max(y1,mw+3*s);}
@@ -898,11 +1007,11 @@ function trendZeichnen(){
     tctx.beginPath();tctx.moveTo(L,Y(v));tctx.lineTo(L+tgeo.pw,Y(v));tctx.stroke();tctx.setLineDash([]);};
   hl(mw,false);
   if(n>=3&&s>0){hl(mw+3*s,true);hl(mw-3*s,true);}
-  tctx.strokeStyle="rgba(58,226,58,.35)";tctx.lineWidth=1;tctx.beginPath();
+  tctx.strokeStyle="rgba("+st.getPropertyValue("--ar")+",.35)";tctx.lineWidth=1;tctx.beginPath();
   pk.forEach((q,i)=>{const x=X(q.nr),y=Y(q.v);if(i)tctx.lineTo(x,y);else tctx.moveTo(x,y);});tctx.stroke();
   for(const q of pk){
     const aus=n>=3&&s>0&&Math.abs(q.v-mw)>3*s;
-    tctx.fillStyle=q.nr===auswahl?"#ffffff":(q.riss||aus)?st.getPropertyValue("--warn"):st.getPropertyValue("--akzent");
+    tctx.fillStyle=q.nr===auswahl?st.getPropertyValue("--hell"):(q.riss||aus)?st.getPropertyValue("--warn"):st.getPropertyValue("--akzent");
     tctx.beginPath();tctx.arc(X(q.nr),Y(q.v),q.nr===auswahl?5:3.2,0,7);tctx.fill();
   }
   tctx.restore();

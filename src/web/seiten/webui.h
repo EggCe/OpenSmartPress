@@ -11,14 +11,16 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
 <html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Wägezelle</title>
-<link rel="stylesheet" href="/stil.css"></head><body><main>
+<link rel="stylesheet" href="/stil.css">
+<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";}catch(e){}</script></head><body><main>
 <header>
   <div class="marke">
-    <div class="logo"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#031003" stroke-width="2.2"
+    <div class="logo"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2"
       stroke-linecap="round" stroke-linejoin="round"><polyline points="1,11 5,11 7.5,4 11,16 13.5,8 15.5,11 19,11"/></svg></div>
     <h1>EcklC <em>OpenSmartPress</em> <span>Wägezelle · ADS1256</span></h1>
   </div>
   <div class="kopfrechts">
+    <div class="themen" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div>
     <div class="status" id="status">verbinde …</div>
     <a class="chip" href="/presse">Pressen</a>
     <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md" target="_blank" rel="noopener">Hilfe</a>
@@ -102,6 +104,15 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
 </main>
 <script>
 "use strict";
+
+// ---------- Farbschema (gilt für beide Seiten, im Browser gespeichert) ----------
+function themaSetzen(t){
+  document.documentElement.dataset.thema=t;
+  try{localStorage.setItem("wz_thema",t);}catch(e){}
+  document.querySelectorAll(".themen button").forEach(b=>b.classList.toggle("aktiv",b.dataset.t===t));
+}
+document.querySelectorAll(".themen button").forEach(b=>b.onclick=()=>themaSetzen(b.dataset.t));
+themaSetzen(document.documentElement.dataset.thema||"");
 const RATEN=[2.5,5,10,15,25,30,50,60,100,500,1000,2000,3750,7500,15000,30000];
 const $=id=>document.getElementById(id);
 let cfg=null,pn=null,ln=null,P=[],st=null,letzt=null,online=false,wsGesetzt=false,logRest="";

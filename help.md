@@ -274,6 +274,12 @@ Closed-Loop-Treiber.
 
 ### Ablauf auf der Pressseite (`/presse`)
 
+Oben füllen Ablauf (mit Live-Kraft, START/STOPP) und das Diagramm den Bildschirm; Kennwerte, Pressungen, Trend,
+Auswertung, Statistik, Sitzungen, Parameter und Protokoll folgen darunter. Das Menü links (Status, Sprungmarken)
+lässt sich mit « einklappen, damit das Diagramm breiter wird.
+Die drei Farbpunkte unten im Menü (auf der Messseite oben rechts) wählen das Farbschema: Grün/Schwarz,
+Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten.
+
 1. **Werkzeug auflegen und tarieren.** Das Gewicht des Werkzeugs wird abgezogen.
 2. **Hub kalibrieren** (ohne Werkstück): Der Motor fährt auf das Werkzeug, merkt sich den Werkzeug-Endpunkt (Weg 0)
    und den tatsächlichen Endpunkt und fährt zurück.
