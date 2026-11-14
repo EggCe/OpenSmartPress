@@ -20,6 +20,7 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   </div>
   <div class="kopfrechts">
     <div class="status" id="status">verbinde …</div>
+    <a class="chip" href="/presse">Pressen</a>
     <a class="chip" href="/info">Hilfe &amp; Tipps</a>
   </div>
 </header>

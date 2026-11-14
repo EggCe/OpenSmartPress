@@ -16,10 +16,14 @@ static constexpr int      EINST_EEPROM_ADR = 0;
 static constexpr uint32_t MOTOR_MAGIC      = 0x31544F4DUL;   // "MOT1"
 static constexpr uint32_t MOTOR_VERSION    = 1;
 static constexpr int      MOTOR_EEPROM_ADR = 64;
+static constexpr uint32_t PRESSE_MAGIC     = 0x31535250UL;   // "PRS1"
+static constexpr uint32_t PRESSE_VERSION   = 1;
+static constexpr int      PRESSE_EEPROM_ADR = 128;
 static constexpr size_t   EEPROM_GROESSE   = 256;
 
 Einstellungen cfg;
 MotorEinst    mot;
+PresseEinst   pres;
 
 void standardEinstellungen() {
   memset(&cfg, 0, sizeof(cfg));
@@ -76,6 +80,27 @@ static bool ladeMotor() {
   return ok;
 }
 
+void presseStandard() {
+  memset(&pres, 0, sizeof(pres));
+  pres.magic     = PRESSE_MAGIC;
+  pres.version   = PRESSE_VERSION;
+  pres.anfahrtMm = 45.0f;            // ganzer Hub: kein Eilgang, alles mit Pressgeschwindigkeit
+  pres.vPressMmS = 1.0f;
+  pres.haltMs    = 0;
+}
+
+static bool ladePresse() {
+  PresseEinst e;
+  EEPROM.get(PRESSE_EEPROM_ADR, e);
+  bool ok = e.magic == PRESSE_MAGIC && e.version == PRESSE_VERSION &&
+            e.crc == crc32((const uint8_t *)&e, sizeof(e) - sizeof(e.crc)) &&
+            isfinite(e.anfahrtMm) && e.anfahrtMm >= 0.0f && e.anfahrtMm <= 45.0f &&
+            isfinite(e.vPressMmS) && e.vPressMmS >= 0.01f && e.vPressMmS <= 20.0f &&
+            e.haltMs <= 60000;
+  if (ok) memcpy(&pres, &e, sizeof(pres));
+  return ok;
+}
+
 void einstellungenStarten() {
   EEPROM.begin(EEPROM_GROESSE);
   if (ladeEinstellungen()) {
@@ -96,6 +121,11 @@ void einstellungenStarten() {
     motorStandard();
     meld.println(F("# Antrieb: Standardwerte, nicht eingerichtet ('mp' zeigt die Parameter)."));
   }
+
+  if (!ladePresse()) {
+    presseStandard();
+    meld.println(F("# Pressvorgang: Standardwerte (kein Eilgang, 1 mm/s, keine Haltezeit)."));
+  }
 }
 
 bool speichereEinstellungen() {
@@ -103,6 +133,8 @@ bool speichereEinstellungen() {
   EEPROM.put(EINST_EEPROM_ADR, cfg);
   mot.crc = crc32((const uint8_t *)&mot, sizeof(mot) - sizeof(mot.crc));
   EEPROM.put(MOTOR_EEPROM_ADR, mot);
+  pres.crc = crc32((const uint8_t *)&pres, sizeof(pres) - sizeof(pres.crc));
+  EEPROM.put(PRESSE_EEPROM_ADR, pres);
   // Flash-Schreiben sperrt die Interrupts und hält Kern 1 kurz an. Die dabei
   // verpassten Wandlungen erkennt der Treiber am Zeitstempel (Lücke in seq).
   bool ok = EEPROM.commit();

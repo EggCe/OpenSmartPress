@@ -4,7 +4,8 @@
  * und kraftüberwachtem Schrittmotor-Antrieb (HB808C)
  *
  * Umgebung: Arduino IDE, Core "Raspberry Pi Pico/RP2040/RP2350" (Earle Philhower),
- *           Board "Raspberry Pi Pico W" (RP2040). Pins und Grenzwerte: src/konfig.h
+ *           Board "Raspberry Pi Pico W" (RP2040), Flash Size "2MB (Sketch: 1MB, FS: 1MB)".
+ *           Pins und Grenzwerte: src/konfig.h
  *
  * Aufteilung auf die beiden Kerne:
  *   Kern 1: ADS1256 komplett (DRDY-Interrupt, SPI, Init, Datenrate, Kalibrierung) und
@@ -26,6 +27,8 @@
  *   einstellungen     Flash-Speicher (Tara, Faktor, Antrieb)
  *   meldung           Meldungen an USB und Web-Log
  *   watchdog          Hardware-Watchdog für Kern 0, Herzschlag von Kern 1
+ *   presse            Pressvorgang: Start, Kraft-Weg-Kurve, Kennwerte
+ *   sitzungen         Sitzungen und Pressungen im Flash (LittleFS)
  *   web/              WLAN, Webserver, Live-Daten, Seiten (HTML/CSS)
  *   treiber/          ADS1256 und Antrieb (HB808C)
  *
@@ -50,6 +53,8 @@
 #include "src/web/wlan.h"
 #include "src/web/webserver.h"
 #include "src/watchdog.h"
+#include "src/presse.h"
+#include "src/sitzungen.h"
 #include "src/treiber/Antrieb.h"
 
 // Kern 1 bekommt einen eigenen 8-KB-Stack (statt 4 KB geteilt mit Kern 0)
@@ -73,6 +78,7 @@ void setup() {
   meld.println(F("# ================================================="));
 
   einstellungenStarten();          // Einstellungen und Antrieb-Parameter aus dem Flash
+  sitzungenStarten();              // Dateisystem mit den Sitzungen (LittleFS)
 
   // Jeder Messwert geht im Interrupt auch an die Kraftüberwachung des Antriebs
   adcStarten(antrieb::messwertIsr);
@@ -95,7 +101,8 @@ void loop() {
   if (wlanAn) webserverBearbeiten();
   wlanSchritt();
 
-  antriebEreignisse();             // Meldungen von Kern 1 (Fahrt beendet, Kalibrierung, Taster, Alarm)
+  presseSchritt();                 // Proben der laufenden Pressung (Kraft über Weg) verarbeiten
+  antriebEreignisse();             // Meldungen von Kern 1 (Fahrt, Kalibrierung, Pressung, Taster, Alarm)
   messwerteAbholen();
 }
 

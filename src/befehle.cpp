@@ -10,6 +10,8 @@
 #include "usb_ausgabe.h"
 #include "motor.h"
 #include "watchdog.h"
+#include "presse.h"
+#include "sitzungen.h"
 #include "web/livedaten.h"
 #include "web/wlan.h"
 
@@ -44,11 +46,14 @@ static void zeigeHilfe() {
   meld.println(F("#      init               ADS1256 neu initialisieren"));
   meld.println(F("#      ws <s>             Dauer der Live-Statistik im Web (0.5..60 s)"));
   meld.println(F("#      mot                Antrieb: Status"));
-  meld.println(F("#      mot kal            Endpunkt-Kalibrierung (wie START-Taster)"));
+  meld.println(F("#      mot kal            Hub kalibrieren (Endpunkt-Kalibrierung, nach jedem Einschalten noetig)"));
+  meld.println(F("#      pr                 Pressung starten (wie START-Taster); 'pr x' bricht ab"));
+  meld.println(F("#      sim [an|aus]       Simulation ohne Motor: Kraft 25-35 kg wird aus der Position berechnet"));
+  meld.println(F("#      sit                Sitzungen anzeigen; sit neu <Name> | wahl <Nr> | zu | loeschen <Nr> ja"));
   meld.println(F("#      mot ab|auf <mm>    Tippbetrieb; 'mot s <n>' = n Schritte (+ ab)"));
   meld.println(F("#      mot null|ein|aus   Position 0 setzen / Motorstrom ein / aus"));
   meld.println(F("#      mot stop           anhalten (auch 'x' und STOPP-Taster)"));
-  meld.println(F("#      mp [name wert]     Antrieb-Parameter anzeigen bzw. setzen"));
+  meld.println(F("#      mp [name wert]     Antrieb- und Press-Parameter anzeigen bzw. setzen (anfahrt, vpress, halt ...)"));
   meld.println(F("#      wlan [an|aus]      WLAN-Status bzw. ein-/ausschalten"));
   meld.println(F("#                         ('wlan aus' fuer Rauschmessungen ohne Funk; danach nur per USB wieder an)"));
   meld.println(F("#      wd                 Watchdog-Status und Grund des letzten Neustarts"));
@@ -180,6 +185,37 @@ void verarbeiteBefehl(char *text) {
     } else {
       wlanInfo();
     }
+    return;
+  }
+  if (strcmp(cmd, "sim") == 0) {
+    if (a1 && strcmp(a1, "an") == 0)       motorSimulationSetzen(true);
+    else if (a1 && strcmp(a1, "aus") == 0) motorSimulationSetzen(false);
+    else meld.println(motorSimulation() ? F("# Simulation ist an ('sim aus' beendet).")
+                                        : F("# Simulation ist aus ('sim an': Pressen ohne Motor, Kraft 25-35 kg berechnet)."));
+    return;
+  }
+  if (strcmp(cmd, "pr") == 0) {
+    if (a1 && strcmp(a1, "x") == 0) { antrieb::stopp(); meld.println(F("# Antrieb: STOPP.")); return; }
+    presseStarten("Befehl");
+    return;
+  }
+  if (strcmp(cmd, "sit") == 0) {
+    if (!a1) { sitzungenInfo(); return; }
+    // Name/Notiz dürfen Leerzeichen enthalten: alles ab dem zweiten Wort wieder zusammensetzen
+    char text[64] = "";
+    for (uint8_t i = 1; i < argc; i++) {
+      if (i > 1) strlcat(text, " ", sizeof(text));
+      strlcat(text, arg[i], sizeof(text));
+    }
+    if (strcmp(a1, "neu") == 0)  { sitzungNeu(text[0] ? text : "Sitzung", ""); return; }
+    if (strcmp(a1, "zu") == 0)   { sitzungSchliessen(); return; }
+    if (strcmp(a1, "wahl") == 0 && a2) { sitzungWaehlen((uint16_t)strtoul(a2, nullptr, 10)); return; }
+    if (strcmp(a1, "loeschen") == 0 && a2) {
+      if (argc < 3 || strcmp(arg[2], "ja") != 0) { meld.printf("# Zur Bestaetigung: sit loeschen %s ja\n", a2); return; }
+      sitzungLoeschen((uint16_t)strtoul(a2, nullptr, 10));
+      return;
+    }
+    meld.println(F("# Aufruf: sit | sit neu <Name> | sit wahl <Nr> | sit zu | sit loeschen <Nr> ja"));
     return;
   }
   if (strcmp(cmd, "wd") == 0) {

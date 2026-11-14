@@ -36,6 +36,7 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <a class="chip" href="#tipps">Tipps</a>
     <a class="chip" href="#kalibrieren">Kalibrieren</a>
     <a class="chip" href="#antrieb">Antrieb</a>
+    <a class="chip" href="#presse">Pressen</a>
     <a class="chip" href="#befehle">Befehle</a>
   </nav>
 </div>
@@ -273,7 +274,7 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <tr><td>GP3</td><td>DIR</td></tr>
     <tr><td>GP4</td><td>ENA (optional)</td></tr>
     <tr><td>GP5</td><td>ALM (optional)</td><td>Alarmausgang des Treibers, z. B. bei Schleppfehler. Mit <code>mp alm 1</code> bzw. <code>2</code> aktivieren.</td></tr>
-    <tr><td>GP6</td><td>START-Taster gegen GND</td><td>Startet die Endpunkt-Kalibrierung.</td></tr>
+    <tr><td>GP6</td><td>START-Taster gegen GND</td><td>Startet eine Pressung (wenn alles bereit ist).</td></tr>
     <tr><td>GP7</td><td>STOPP-Taster gegen GND</td><td>Hält sofort an. Ersetzt keinen Not-Aus.</td></tr>
   </table></div>
 
@@ -289,7 +290,8 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
   </ol>
 
   <h3>Endpunkt kalibrieren</h3>
-  <p>Startet mit dem START-Taster, dem Knopf auf der Messseite oder <code>mot kal</code>. Das Werkzeug muss über dem Werkstück stehen.</p>
+  <p>Startet mit dem Knopf auf der Mess- oder Pressseite oder <code>mot kal</code>. Das Werkzeug liegt auf der Zelle,
+    ohne Werkstück. Nach jedem Einschalten nötig, weil die Position des Motors dann unbekannt ist.</p>
   <ol>
     <li>Langsam abwärts (<code>vsuch</code>, Standard 1 mm/s), höchstens über den Hub von 45 mm.</li>
     <li>Steigt die Last um mehr als <code>kontakt</code> (Standard 100 g) gegenüber dem Wert vor der Fahrt, ist der
@@ -323,6 +325,48 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
   <p>Die Schrittfrequenz liegt zwischen 16 Hz und 20 kHz. Ein Mikroschritt von 1600–3200 pro Umdrehung genügt beim Closed-Loop-Treiber.</p>
 </div>
 
+<div class="karte" id="presse">
+  <div class="titel">Pressen</div>
+  <h3>Ablauf auf der Pressseite (<a href="/presse">/presse</a>)</h3>
+  <ol>
+    <li><strong>Werkzeug auflegen und tarieren.</strong> Das Gewicht des Werkzeugs wird abgezogen.</li>
+    <li><strong>Hub kalibrieren</strong> (ohne Werkstück): Der Motor fährt auf das Werkzeug, merkt sich den
+      Werkzeug-Endpunkt (Weg 0) und den tatsächlichen Endpunkt und fährt zurück.</li>
+    <li><strong>Sitzung wählen oder anlegen.</strong> Jede Pressung wird sofort in der aktiven Sitzung gespeichert.</li>
+    <li><strong>Werkstück einlegen und START</strong> (Knopf oder Taster): Eilgang bis zum Anfahrpunkt, dann mit
+      Pressgeschwindigkeit bis zum kalibrierten Endpunkt (oder bis zur Maximalkraft), Haltezeit, zurück zum Start.</li>
+  </ol>
+  <h3>Diagramm und Kennwerte</h3>
+  <p>Jede Pressung erscheint als Kurve <strong>Kraft über Weg</strong>; alle Pressungen der Sitzung liegen übereinander.
+    Der Weg zählt ab dem Werkzeug-Endpunkt: Das Werkstück berührt also bei einem negativen Weg. Ein Klick auf eine Kurve
+    oder eine Tabellenzeile zeigt ihre Kennwerte und die Abweichung zum Mittel der Sitzung.</p>
+  <dl>
+    <div class="kennzahl"><dt>Spitzenkraft</dt><dd><p>Größte Kraft der Pressung und der Weg, bei dem sie auftrat.</p></dd></div>
+    <div class="kennzahl"><dt>Endkraft</dt><dd><p>Mittel der letzten ca. 10 ms am Endpunkt; mit Haltezeit zusätzlich die Kraft am Ende der Haltezeit.</p></dd></div>
+    <div class="kennzahl"><dt>Kontakt, Presstiefe</dt><dd><p>Kontakt: erster Messwert über der Kontaktschwelle (<code>mp kontakt</code>).
+      Presstiefe: Weg vom Kontakt bis zum Endpunkt.</p></dd></div>
+    <div class="kennzahl"><dt>σ, Spannweite</dt><dd><p>Standardabweichung und Max − Min aller Kraftwerte vom Kontakt bis zum Endpunkt.
+      Die Sitzungsstatistik zeigt zusätzlich Mittel, σ und Spannweite jedes Kennwerts über alle gültigen Pressungen –
+      das Maß für die Gleichmäßigkeit.</p></dd></div>
+    <div class="kennzahl"><dt>Pressarbeit</dt><dd><p>Fläche unter der Kurve ab Kontakt (Kraft × Weg) in Joule.</p></dd></div>
+  </dl>
+  <p>Die Krafteinheit (N, kg oder lbs) ist über dem Diagramm wählbar; sie gilt auch für den CSV-Export.
+    Gespeichert wird immer in N.</p>
+  <h3>Einstellungen</h3>
+  <p><code>mp anfahrt &lt;mm&gt;</code>: Eilgang bis so viele mm über dem Werkzeug-Endpunkt; etwas höher als die
+    Oberkante des Werkstücks wählen (Standard 45 = kein Eilgang). <code>mp vpress &lt;mm/s&gt;</code>: Pressgeschwindigkeit.
+    <code>mp halt &lt;ms&gt;</code>: Haltezeit am Endpunkt. Danach <code>s</code>.</p>
+  <h3>Simulation ohne Motor</h3>
+  <p><code>sim an</code> oder der Schalter auf der Pressseite: Die Kraft wird aus der Position berechnet – virtuelles
+    Werkzeug 15 mm unter der aktuellen Position, je Pressung ein Werkstück mit zufälliger Spitzenkraft zwischen
+    25 und 35 kg. ADC und Zelle müssen angeschlossen sein, <code>mp spmm</code> gesetzt. Danach Hub kalibrieren und
+    pressen. Simulierte Pressungen sind markiert; nach einem Neustart ist die Simulation aus.</p>
+  <h3>Sitzungen</h3>
+  <p>Im Flash des Pico ist Platz für etwa 200 Pressungen. Sitzungen lassen sich als CSV (für Excel: Semikolon,
+    Dezimalkomma) oder JSON herunterladen. Danach alte Sitzungen löschen.</p>
+  <p class="hinweis">Die Kraftgrenze stoppt den Motor schnell, ersetzt aber keine Schutzeinrichtung (Not-Aus, Schutzhaube, Zweihandbedienung).</p>
+</div>
+
 <div class="karte" id="befehle">
   <div class="titel">Befehle</div>
   <p>Eingabe im Feld unter dem Protokoll oder im seriellen Monitor (Zeilenende „Neue Zeile“). Dezimalkomma geht auch.</p>
@@ -340,11 +384,14 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
     <tr><td><code>i</code></td><td>Status anzeigen</td></tr>
     <tr><td><code>m &lt;0..4&gt;</code></td><td>USB-Ausgabe: 0 aus, 1 lesbar, 2 CSV, 3 Plotter, 4 binär</td></tr>
     <tr><td><code>mot</code></td><td>Antrieb: Status, Position, letzte Kalibrierung</td></tr>
-    <tr><td><code>mot kal</code></td><td>Endpunkt-Kalibrierung (wie START-Taster)</td></tr>
+    <tr><td><code>mot kal</code></td><td>Hub kalibrieren (Endpunkt-Kalibrierung, nach jedem Einschalten)</td></tr>
     <tr><td><code>mot ab|auf &lt;mm&gt;</code></td><td>Tippbetrieb; <code>mot s &lt;n&gt;</code> = n Schritte (+ ab)</td></tr>
     <tr><td><code>mot null|ein|aus</code></td><td>Position 0 setzen, Motorstrom ein bzw. aus</td></tr>
     <tr><td><code>mot stop</code></td><td>Anhalten (auch <code>x</code>, Esc im Browser, STOPP-Taster)</td></tr>
-    <tr><td><code>mp [name wert]</code></td><td>Antrieb-Parameter anzeigen bzw. setzen</td></tr>
+    <tr><td><code>mp [name wert]</code></td><td>Antrieb- und Press-Parameter anzeigen bzw. setzen (u. a. <code>anfahrt</code>, <code>vpress</code>, <code>halt</code>)</td></tr>
+    <tr><td><code>pr</code> / <code>pr x</code></td><td>Pressung starten (wie START-Taster) / abbrechen</td></tr>
+    <tr><td><code>sim [an|aus]</code></td><td>Simulation ohne Motor (Kraft 25–35 kg berechnet)</td></tr>
+    <tr><td><code>sit</code></td><td>Sitzungen anzeigen; <code>sit neu &lt;Name&gt;</code>, <code>sit wahl &lt;Nr&gt;</code>, <code>sit zu</code>, <code>sit loeschen &lt;Nr&gt; ja</code></td></tr>
     <tr><td><code>wlan [an|aus]</code></td><td>WLAN-Status bzw. ein-/ausschalten (wieder an nur über USB)</td></tr>
     <tr><td><code>wd</code></td><td>Watchdog-Status und Grund des letzten Neustarts (<code>wd test 0|1</code> hängt einen Kern zum Test auf und löst einen Neustart aus)</td></tr>
     <tr><td><code>c</code></td><td>Selbstkalibrierung des ADC (Offset und Verstärkung)</td></tr>

@@ -6,6 +6,46 @@
 #include "einstellungen.h"
 #include "adc.h"
 #include "auftraege.h"
+#include "presse.h"
+
+// Endpunkt in diesem Betrieb kalibriert? (Position ist nach einem Neustart unbekannt)
+static bool endpunktAktuell = false;
+
+// Simulation ohne Motor: Kraftmodell auf Kern 1 (nur im RAM, nach dem Einschalten aus)
+static bool simulation = false;
+static constexpr float SIM_WERKZEUG_MM = 15.0f;   // virtuelles Werkzeug unter der Position beim Einschalten
+static constexpr float SIM_HOEHE_MM    = 3.0f;    // virtuelles Werkstück steht so weit über dem Werkzeug
+static constexpr float SIM_FMIN_G      = 25000.0f;
+static constexpr float SIM_FMAX_G      = 35000.0f;
+
+bool motorSimulation() { return simulation; }
+
+void motorSimulationSetzen(bool an) {
+  if (an == simulation) {
+    meld.println(simulation ? F("# Simulation ist bereits an ('sim aus' beendet).") : F("# Simulation ist aus ('sim an' startet)."));
+    return;
+  }
+  if (antrieb::beschaeftigt()) { meld.println(F("# Antrieb faehrt - erst 'x'.")); return; }
+  if (an && mot.schritteProMm <= 0.0f) {
+    meld.println(F("# Fuer die Simulation zuerst Schritte pro mm setzen, z. B. 'mp spmm 320'."));
+    return;
+  }
+  simulation = an;
+  endpunktAktuell = false;                        // Welt hat sich geaendert: Hub neu kalibrieren
+  antriebSenden(antrieb::BefehlTyp::PARAM, 0);
+  if (an) {
+    meld.printf("# SIMULATION an: kein Motor noetig, die Kraft wird aus der Position berechnet.\n"
+                "#   Virtuelles Werkzeug %.0f mm unter der aktuellen Position, Werkstueck %.0f mm hoch,\n"
+                "#   Spitzenkraft je Pressung zufaellig %.0f-%.0f kg. Jetzt 'Hub kalibrieren', dann pressen.\n",
+                SIM_WERKZEUG_MM, SIM_HOEHE_MM, SIM_FMIN_G / 1000.0f, SIM_FMAX_G / 1000.0f);
+  } else {
+    meld.println(F("# Simulation aus: Kraft kommt wieder von der Waegezelle. Hub neu kalibrieren."));
+  }
+}
+
+bool motorEndpunktAktuell() {
+  return endpunktAktuell && mot.kalGueltig;
+}
 
 double motorMaxKraftG() {
   return (mot.maxKraftG < NENNLAST_G) ? mot.maxKraftG : NENNLAST_G;   // nie über Nennlast
@@ -30,6 +70,17 @@ static antrieb::Param antriebParam() {
   long k = lround(mot.kontaktG * fa);
   p.kontaktCounts = (int32_t)(k < 1 ? 1 : k);
   p.maxCounts     = (int32_t)lround(motorMaxKraftG() * fa);
+  // Pressvorgang: 0 = Werkzeug-Endpunkt, Ende = kalibrierter tatsächlicher Endpunkt
+  p.presseAnfahrt = -(int32_t)lroundf(pres.anfahrtMm * mot.schritteProMm);
+  p.presseEnde    = mot.kalEnde;
+  p.vPressMmS     = pres.vPressMmS;
+  p.haltMs        = pres.haltMs;
+  p.simulation     = simulation ? 1 : 0;
+  p.countsProGramm = (float)fa;
+  p.simWerkzeugMm  = SIM_WERKZEUG_MM;
+  p.simHoeheMm     = SIM_HOEHE_MM;
+  p.simFminG       = SIM_FMIN_G;
+  p.simFmaxG       = SIM_FMAX_G;
   return p;
 }
 
@@ -54,7 +105,7 @@ static bool antriebPruefen() {
     meld.println(F("# ADC misst nicht - ohne Kraftueberwachung keine Bewegung ('init')."));
     return false;
   }
-  if (!cfg.kalibriert) {
+  if (!cfg.kalibriert && !simulation) {               // Simulation rechnet mit dem aktuellen Faktor
     meld.println(F("# Waage nicht kalibriert - ohne gueltigen Faktor sind die Kraftgrenzen unsicher ('k <g>' oder 'f')."));
     return false;
   }
@@ -102,6 +153,7 @@ void antriebEreignisse() {
         mot.kalTiefe   = e.a;
         mot.kalEnde    = e.b;
         mot.kalKraftG  = (float)(e.c / fa);
+        endpunktAktuell = true;
         meld.println(F("# ============== Endpunkt-Kalibrierung fertig =============="));
         meld.printf("# Werkzeug-Endpunkt (Kontakt): %.3f mm unter der Startposition -> neuer Nullpunkt\n", e.a / spmm);
         meld.printf("# Tatsaechlicher Endpunkt:     +%ld Schritte (%.4f mm) nach dem Kontakt, %.2f kg\n",
@@ -129,7 +181,12 @@ void antriebEreignisse() {
 
       case antrieb::EreignisTyp::START_TASTE:
         meld.println(F("# START-Taster gedrueckt."));
-        if (!antrieb::beschaeftigt()) antriebKalibrieren();
+        presseStarten("START-Taster");           // Kalibrieren nur noch ueber Web/'mot kal'
+        break;
+
+      case antrieb::EreignisTyp::PRESSE_FERTIG:
+      case antrieb::EreignisTyp::PRESSE_FEHLER:
+        presseEreignis(e);
         break;
 
       case antrieb::EreignisTyp::ALARM:
@@ -164,6 +221,7 @@ static void motorStatus() {
   } else {
     meld.println(F("# Kalibrierung:   noch keine ('mot kal' oder START-Taster)"));
   }
+  if (simulation) meld.println(F("# SIMULATION aktiv: Kraft wird berechnet ('sim aus' beendet)."));
   meld.println(F("# Parameter mit 'mp', Befehle mit 'h'."));
 }
 
@@ -181,7 +239,10 @@ void motorBefehl(const char *a1, const char *a2) {
   }
   if (strcmp(a1, "null") == 0) {
     if (antrieb::beschaeftigt()) { meld.println(F("# Antrieb faehrt - erst 'x'.")); return; }
-    if (antriebSenden(antrieb::BefehlTyp::NULLPUNKT, 0)) meld.println(F("# Aktuelle Position ist jetzt 0."));
+    if (antriebSenden(antrieb::BefehlTyp::NULLPUNKT, 0)) {
+      endpunktAktuell = false;                  // Bezug zum kalibrierten Endpunkt ist weg
+      meld.println(F("# Aktuelle Position ist jetzt 0. Hub vor dem Pressen neu kalibrieren."));
+    }
     return;
   }
   const bool ab = strcmp(a1, "ab") == 0, auf = strcmp(a1, "auf") == 0, sch = strcmp(a1, "s") == 0;
@@ -219,6 +280,9 @@ void motorParameter(const char *name, const char *wert) {
     meld.printf("#  ueber   %10ld  Schritte Ueberlauf nach dem Kontakt\n", (long)mot.ueberSchritte);
     meld.printf("#  kontakt %10.0f  g Lastaenderung, die als Kontakt gilt\n", mot.kontaktG);
     meld.printf("#  fmax    %10.0f  g Maximalkraft, Abwaertsfahrt stoppt sofort (wirksam: %.0f g)\n", mot.maxKraftG, motorMaxKraftG());
+    meld.printf("#  anfahrt %10.2f  mm ueber dem Werkzeug-Endpunkt: bis hier Eilgang, danach Pressgeschwindigkeit\n", pres.anfahrtMm);
+    meld.printf("#  vpress  %10.3f  mm/s Pressgeschwindigkeit\n", pres.vPressMmS);
+    meld.printf("#  halt    %10lu  ms Haltezeit am Endpunkt\n", (unsigned long)pres.haltMs);
     if (mot.schritteProMm > 0.0f) {
       meld.printf("# Schrittfrequenz: Suche %.0f Hz, Fahrt %.0f Hz (erlaubt 16..20000 Hz)\n",
                   mot.vSuchMmS * mot.schritteProMm, mot.vFahrtMmS * mot.schritteProMm);
@@ -241,9 +305,15 @@ void motorParameter(const char *name, const char *wert) {
   else if (strcmp(name, "ueber") == 0)   { ok = ok && w >= 0.0f && w <= 10000.0f; if (ok) mot.ueberSchritte = (int32_t)lroundf(w); }
   else if (strcmp(name, "kontakt") == 0) { ok = ok && w >= 5.0f && w <= 5000.0f;  if (ok) mot.kontaktG = w; }
   else if (strcmp(name, "fmax") == 0)    { ok = ok && w >= 100.0f && w <= NENNLAST_G; if (ok) mot.maxKraftG = w; }
+  else if (strcmp(name, "anfahrt") == 0) { ok = ok && w >= 0.0f && w <= 45.0f;    if (ok) pres.anfahrtMm = w; }
+  else if (strcmp(name, "vpress") == 0)  { ok = ok && w >= 0.01f && w <= 20.0f;   if (ok) pres.vPressMmS = w; }
+  else if (strcmp(name, "halt") == 0)    { ok = ok && w >= 0.0f && w <= 60000.0f; if (ok) pres.haltMs = (uint32_t)lroundf(w); }
   else { meld.printf("# Unbekannter Parameter '%s' ('mp' zeigt alle).\n", name); return; }
   if (!ok) { meld.printf("# Ungueltiger Wert fuer '%s' ('mp' zeigt die Bereiche).\n", name); return; }
-  if (strcmp(name, "hub") == 0 || strcmp(name, "spmm") == 0) mot.kalGueltig = 0;   // altes Ergebnis passt nicht mehr
+  if (strcmp(name, "hub") == 0 || strcmp(name, "spmm") == 0) {   // altes Ergebnis passt nicht mehr
+    mot.kalGueltig = 0;
+    endpunktAktuell = false;
+  }
   antriebSenden(antrieb::BefehlTyp::PARAM, 0);
   meld.printf("# %s = %s (mit 's' speichern)\n", name, wert);
   if (mot.schritteProMm > 0.0f) {

@@ -64,7 +64,7 @@ Nema-23-Closed-Loop-Schrittmotor mit Treiber **HB808C** (PUL/DIR, 24–80 V, Sig
 | GP3 | DIR | wie PUL |
 | GP4 | ENA | optional (`mp ena`) |
 | GP5 | ALM | optional, Alarmausgang des Treibers (`mp alm`) |
-| GP6 | START-Taster gegen GND | startet die Endpunkt-Kalibrierung |
+| GP6 | START-Taster gegen GND | startet eine Pressung (wenn alles bereit ist) |
 | GP7 | STOPP-Taster gegen GND | hält sofort an |
 
 Ein Nema 23 an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken. Die Kraftgrenze im Pico ist schnell,
@@ -84,7 +84,12 @@ Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des
    ```
 3. `wlan_zugang.beispiel.h` nach **`wlan_zugang.h`** kopieren und SSID und Passwort eintragen
    (nur 2,4-GHz-Netze). Diese Datei wird nicht ins Repository übernommen.
-4. `Waegezelle_Test.ino` öffnen, Board **„Raspberry Pi Pico W“** wählen und hochladen.
+4. `Waegezelle_Test.ino` öffnen, Board **„Raspberry Pi Pico W“** und unter *Werkzeuge → Flash Size*
+   **„2MB (Sketch: 1MB, FS: 1MB)“** wählen, dann hochladen. Im Dateisystem liegen die Sitzungen; die
+   gespeicherten Einstellungen bleiben beim Umstellen erhalten. Mit arduino-cli:
+   ```
+   arduino-cli compile --upload -p COM5 --fqbn rp2040:rp2040:rpipicow:flash=2097152_1048576 .
+   ```
 5. Seriellen Monitor öffnen (Zeilenende „Neue Zeile“). Nach dem Start erscheint die Adresse der Weboberfläche:
    ```
    # WLAN verbunden: http://192.168.x.x  bzw. http://waegezelle.local
@@ -96,7 +101,8 @@ Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des
 
 | Adresse | Inhalt |
 |---|---|
-| `http://waegezelle.local/` | Messseite: Gewicht, Diagramm, Statistik, Protokoll, Befehle |
+| `http://waegezelle.local/presse` | **Pressseite** (Produktion): Ablauf, Kraft-Weg-Diagramm, Kennwerte, Sitzungen |
+| `http://waegezelle.local/` | Messseite (Service): Gewicht, Diagramm, Statistik, Protokoll, Befehle |
 | `http://waegezelle.local/info` | Hilfe: alle Regler und Kennzahlen erklärt, Einstelltipps, Kalibrierablauf |
 
 Funktioniert `waegezelle.local` nicht, die IP-Adresse aus dem seriellen Monitor verwenden. Die Seiten liegen
@@ -142,7 +148,7 @@ Im Eingabefeld der Weboberfläche oder im seriellen Monitor. `h` zeigt alle Befe
 2. Waage kalibriert, Datenrate 2000 SPS. Unter 500 SPS oder ohne kalibrierten Faktor fährt der Antrieb nicht.
 3. Richtung prüfen: `mot ab 1` muss nach unten fahren, sonst `mp dir 0`/`1`. Weg mit `mot ab 10` nachmessen.
 4. Erste Fahrten mit kleiner Kraftgrenze: `mp fmax 2000`. Mit `s` speichern.
-5. **Endpunkt-Kalibrierung** mit dem START-Taster, dem Webknopf oder `mot kal`:
+5. **Endpunkt-Kalibrierung** (Hub kalibrieren) mit dem Webknopf oder `mot kal`, Werkzeug liegt auf der Zelle:
    - langsam abwärts, bis die Last um mehr als 100 g steigt: **Werkzeug-Endpunkt** = neuer Nullpunkt,
    - weiter bis Kontakt + 10 Schritte oder bis 50 kg (was zuerst kommt): **tatsächlicher Endpunkt**,
    - zurück zur Startposition; Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
@@ -153,10 +159,50 @@ Stopp jederzeit mit `x`, der Esc-Taste im Browser, dem STOPP-Knopf oder dem STOP
 | Befehl | Funktion |
 |---|---|
 | `mot` | Status, Position, letzte Kalibrierung |
-| `mot kal` | Endpunkt-Kalibrierung |
+| `mot kal` | Endpunkt-Kalibrierung (Hub kalibrieren) |
 | `mot ab <mm>` / `mot auf <mm>` / `mot s <n>` | Tippbetrieb |
 | `mot null` / `mot ein` / `mot aus` | Position 0 setzen, Motorstrom ein/aus |
-| `mp` / `mp <name> <wert>` | Parameter anzeigen/setzen: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax` |
+| `mp` / `mp <name> <wert>` | Parameter anzeigen/setzen: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax anfahrt vpress halt` |
+
+### Pressen (Produktion)
+
+Auf der Pressseite `http://waegezelle.local/presse`:
+
+1. **Werkzeug auflegen und tarieren** – das Werkzeuggewicht wird abgezogen.
+2. **Hub kalibrieren** (ohne Werkstück, nach jedem Einschalten nötig): Werkzeug-Endpunkt = Weg 0, dazu der
+   tatsächliche Endpunkt (Kontakt + `ueber` Schritte bzw. `fmax`).
+3. **Sitzung wählen oder anlegen.**
+4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): Eilgang bis `anfahrt` mm über dem
+   Werkzeug-Endpunkt, mit `vpress` bis zum **kalibrierten Endpunkt** (früher bei `fmax`), `halt` ms halten, zurück.
+
+Jede Pressung wird als Kurve **Kraft über Weg** gezeichnet und sofort im Flash gespeichert (ca. 200 Pressungen).
+Alle Pressungen einer Sitzung liegen übereinander; ein Klick auf eine Kurve oder Tabellenzeile zeigt Spitzenkraft,
+Endkraft, Kontakt, Presstiefe, mittlere Kraft, Standardabweichung, Spannweite, Pressarbeit und Zeiten, jeweils mit
+Abweichung zum Mittel der Sitzung. Die Sitzungsstatistik fasst Mittel, σ und Spannweite aller Kennwerte zusammen.
+Sitzungen lassen sich anlegen, öffnen, umbenennen, löschen und als **CSV** (Excel: Semikolon, Dezimalkomma) oder
+**JSON** exportieren. Abgebrochene Pressungen werden markiert gespeichert und zählen nicht zur Statistik.
+Die **Krafteinheit** ist über dem Diagramm wählbar (**N, kg, lbs**) und gilt für Diagramm, Kennwerte, Statistik und
+den CSV-Export; der Browser merkt sich die Wahl. Gespeichert wird immer in N, der JSON-Export bleibt in N.
+
+**Simulation ohne Motor:** `sim an` (oder Schalter auf der Pressseite). Die Schrittimpulse laufen ins Leere, die
+Position zählt trotzdem; die Kraft wird aus der Position berechnet: ein virtuelles Werkzeug 15 mm unter der
+aktuellen Position und je Pressung ein virtuelles Werkstück (ca. 3 mm hoch) mit zufälliger Spitzenkraft
+**zwischen 25 und 35 kg** plus Rauschen. ADC und Wägezelle müssen angeschlossen sein (sie geben den Takt vor),
+`mp spmm` muss gesetzt sein, eine Kalibrierung der Waage ist nicht nötig. Danach wie gewohnt Hub kalibrieren und
+pressen; tipp: `mp anfahrt 5` verkürzt die Fahrt. Simulierte Pressungen sind in Tabelle und Export markiert. Die
+Simulation ist nach jedem Neustart aus.
+
+Voraussetzungen für START: ADC misst mit mindestens 500 SPS, Waage kalibriert, Hub seit dem Einschalten kalibriert,
+Sitzung aktiv, genug Speicher, Antrieb steht über dem Endpunkt. Fehlt etwas, nennt die Seite den Grund.
+
+| Befehl | Funktion |
+|---|---|
+| `pr` / `pr x` | Pressung starten / abbrechen |
+| `sim an` / `sim aus` | Simulation ohne Motor (siehe unten) |
+| `sit` | Sitzungen und Speicherbelegung anzeigen |
+| `sit neu <Name>` / `sit wahl <Nr>` / `sit zu` | Sitzung anlegen / öffnen / schließen |
+| `sit loeschen <Nr> ja` | Sitzung löschen |
+| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt, Pressgeschwindigkeit, Haltezeit (danach `s`) |
 
 ### Aufzeichnung am PC über USB
 
@@ -215,14 +261,17 @@ Waegezelle_Test/
 │   ├── meldung.*              Meldungen an USB und Web-Protokoll
 │   ├── pruefsumme.*           CRC-32 (Flash) und CRC-8 (Binärrahmen)
 │   ├── watchdog.*             Hardware-Watchdog für Kern 0, Herzschlag-Überwachung von Kern 1
+│   ├── presse.*               Pressvorgang: Startprüfung, Kraft-Weg-Kurve, Kennwerte
+│   ├── sitzungen.*            Sitzungen und Pressungen im Flash (LittleFS)
 │   ├── treiber/
 │   │   ├── ADS1256.*          RDATAC-Dauerbetrieb, Interrupt, Ringpuffer, Lückenerkennung
 │   │   └── Antrieb.*          HB808C: PWM-Schritte, Rampen, Endpunkt-Kalibrierung, Kraftüberwachung
 │   └── web/
 │       ├── wlan.*             WLAN-Verbindung, mDNS
 │       ├── webserver.*        HTTP-Routen, JSON für /daten
+│       ├── presse_web.cpp     Routen der Pressseite, Sitzungen, Export
 │       ├── livedaten.*        Diagrammpunkte und Live-Statistik
-│       └── seiten/            webui.h (Messseite), webinfo.h (Hilfe), webstil.h (/stil.css)
+│       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webinfo.h (Hilfe), webstil.h
 ├── tools/waegezelle_plot.py   PC-Programm für Live-Anzeige und Aufzeichnung über USB
 └── docs/                      Verdrahtungsplan
 ```
@@ -254,6 +303,11 @@ Gramm = (Counts − tara) / faktor
 |---|---|
 | `GET /daten?p=<punkt>&l=<log>` | JSON: Konfiguration, Diagrammpunkte (Zeit, Mittel, Min, Max, geglättet), Statistik, neue Protokollzeilen |
 | `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus |
+| `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, neue Protokollzeilen |
+| `GET /sitzungen` | JSON: alle Sitzungen und Speicherbelegung |
+| `GET /sitzung/index?id=` / `GET /sitzung/presse?id=&nr=` | binär: Köpfe aller Pressungen / eine Pressung (Format in `src/sitzungen.h`) |
+| `GET /sitzung/export?id=&f=csv\|json` | Export zum Herunterladen |
+| `POST /sitzung` mit `a=neu\|wahl\|zu\|aendern\|loeschen` | Sitzungen verwalten |
 
 ## Hinweise
 

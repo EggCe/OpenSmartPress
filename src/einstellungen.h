@@ -3,6 +3,7 @@
  *
  *   Adresse  0: Einstellungen (32 Byte, Magic "WLZ1")
  *   Adresse 64: MotorEinst    (64 Byte, Magic "MOT1")
+ *   Adresse 128: PresseEinst  (32 Byte, Magic "PRS1")
  *
  * Layout ändern: Größe über die reservierten Bytes halten (static_assert) oder die
  * Version erhöhen. Passt Magic, Version oder CRC nicht, gelten die Standardwerte.
@@ -55,10 +56,24 @@ struct MotorEinst {
 };
 static_assert(sizeof(MotorEinst) == 64, "MotorEinst muss 64 Byte gross sein");
 
+// Pressvorgang (eigener Block ab Adresse 128, 32 Byte)
+struct PresseEinst {
+  uint32_t magic;
+  uint32_t version;
+  float    anfahrtMm;       // Eilgang bis so viele mm über dem Werkzeug-Endpunkt, danach Pressgeschwindigkeit
+  float    vPressMmS;       // Pressgeschwindigkeit
+  uint32_t haltMs;          // Haltezeit am Endpunkt
+  uint8_t  reserviert[8];
+  uint32_t crc;
+};
+static_assert(sizeof(PresseEinst) == 32, "PresseEinst muss 32 Byte gross sein");
+
 extern Einstellungen cfg;
 extern MotorEinst    mot;
+extern PresseEinst   pres;
 
 void standardEinstellungen();
 void motorStandard();
-void einstellungenStarten();        // EEPROM öffnen, beide Blöcke laden bzw. Standardwerte, melden
-bool speichereEinstellungen();      // beide Blöcke mit CRC schreiben
+void presseStandard();
+void einstellungenStarten();        // EEPROM öffnen, alle Blöcke laden bzw. Standardwerte, melden
+bool speichereEinstellungen();      // alle Blöcke mit CRC schreiben

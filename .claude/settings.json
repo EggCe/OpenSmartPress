@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "fullstack-dev-skills@fullstack-dev-skills": true,
+    "gpio-config@embedded-agent-skills": true
+  }
+}

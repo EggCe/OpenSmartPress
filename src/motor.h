@@ -15,3 +15,6 @@ void antriebEreignisse();                                     // aus loop(): Mel
 void motorBefehl(const char *a1, const char *a2);             // Befehl 'mot'
 void motorParameter(const char *name, const char *wert);      // Befehl 'mp'
 double motorMaxKraftG();                                      // wirksame Maximalkraft (<= Nennlast)
+bool motorEndpunktAktuell();                                  // Hub seit dem Einschalten kalibriert
+bool motorSimulation();                                       // Simulation ohne Motor aktiv
+void motorSimulationSetzen(bool an);                          // Befehl 'sim an|aus'

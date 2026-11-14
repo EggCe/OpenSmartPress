@@ -24,13 +24,15 @@ static uint16_t  jsonLen = 0;
 // ===========================================================================
 // JSON gepuffert und chunked senden
 // ===========================================================================
-static void jsonFlush() {
+WebServer &webServer() { return server; }
+
+void jsonFlush() {
   if (jsonLen == 0) return;
   server.sendContent(jsonPuf, jsonLen);
   jsonLen = 0;
 }
 
-static void jsonf(const char *fmt, ...) {
+void jsonf(const char *fmt, ...) {
   char tmp[256];
   va_list ap;
   va_start(ap, fmt);
@@ -44,12 +46,25 @@ static void jsonf(const char *fmt, ...) {
 }
 
 // Ein Zeichen als Teil eines JSON-Strings (mit Escape)
-static void jsonZeichen(char c) {
+void jsonZeichen(char c) {
   if ((size_t)jsonLen + 2u > sizeof(jsonPuf)) jsonFlush();
   if (c == '"' || c == '\\') { jsonPuf[jsonLen++] = '\\'; jsonPuf[jsonLen++] = c; }
   else if (c == '\n')        { jsonPuf[jsonLen++] = '\\'; jsonPuf[jsonLen++] = 'n'; }
   else if ((uint8_t)c >= 0x20 && (uint8_t)c < 0x7F) jsonPuf[jsonLen++] = c;
   // andere Steuerzeichen (z. B. '\r') weglassen
+}
+
+// Antwort mit unbekannter Länge beginnen (chunked); danach jsonf/jsonZeichen, Ende mit jsonEnde()
+void jsonStart(const char *typ) {
+  server.sendHeader("Cache-Control", "no-store");
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, typ, "");
+  jsonLen = 0;
+}
+
+void jsonEnde() {
+  jsonFlush();
+  server.sendContent("");                                  // Ende der chunked-Antwort
 }
 
 // ===========================================================================
@@ -159,6 +174,7 @@ void webserverStarten() {
   server.on("/stil.css", HTTP_GET, webStil);
   server.on("/daten", HTTP_GET, webDaten);
   server.on("/cmd", webBefehl);    // GET oder POST
+  presseWebRouten();               // Pressseite, Sitzungen, Export (presse_web.cpp)
   server.onNotFound([]() { server.send(404, "text/plain", "Nicht gefunden"); });
   server.enableDelay(false);       // handleClient() soll die Messwertverarbeitung nicht bremsen
   server.begin();

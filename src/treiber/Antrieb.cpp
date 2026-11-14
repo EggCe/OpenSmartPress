@@ -64,6 +64,10 @@ static volatile bool     messwerteDa = false;
 static volatile Zustand zustand = Zustand::BEREIT;
 static int32_t startPos = 0, kontaktPos = 0, endPos = 0, endLast = 0;
 static Stopp   ueberGrund = Stopp::KEIN;
+static Stopp    presseGrund = Stopp::KEIN;          // Ende des Pressens: ZIEL oder KRAFT
+static int32_t  presseEndPos = 0;
+static uint32_t haltStartMs = 0;
+static bool     presseFehlerNachRueck = false;      // Kraft in der Anfahrt: nach der Rückfahrt als Fehler melden
 static volatile bool referenziert = false;
 static volatile bool alarmAktiv = false;
 static volatile bool enaEin = false;
@@ -78,6 +82,23 @@ static Param              befehlParam;
 static int32_t            befehlSchritte = 0;
 static volatile BefehlTyp befehlTyp = BefehlTyp::KEIN;
 static volatile bool      stoppAnfrage = false;
+
+// Aufzeichnung des Pressvorgangs Kern 1 -> Kern 0 (ein Erzeuger im ADC-Interrupt, ein Verbraucher)
+static const uint32_t     PROBEN_N = 2048;               // Zweierpotenz, ca. 1 s bei 2000 SPS
+static Probe              proben[PROBEN_N];
+static volatile uint32_t  probenKopf = 0, probenEnde = 0;
+static volatile uint32_t  probenVerloren = 0;
+static volatile uint8_t   aufzeichnungPhase = 0;         // 0 = aus, sonst PHASE_*
+
+// Simulation (Kern 1; Modell wird im ADC-Interrupt gelesen)
+static const float SIM_WERKZEUG_G_PRO_SCHRITT = 20.0f;   // Steifigkeit des virtuellen Werkzeugs
+static const float SIM_RAUSCHEN_G             = 30.0f;   // Rauschen ca. +-30 g
+static int32_t     simWerkzeug = 0;                      // Position der Werkzeugoberkante (Schritte)
+static int32_t     simOben = 0;                          // Oberkante des Werkstücks
+static float       simInvWeg = 1.0f;                     // 1 / (simWerkzeug - simOben)
+static float       simFspitze = 0.0f;                    // Spitzenkraft dieser Pressung (g)
+static volatile bool simWerkstueck = false;
+static uint32_t    simZufall = 1;
 
 // Ereignisse Kern 1 -> Kern 0 (ein Erzeuger, ein Verbraucher)
 static const uint32_t     EREIGNIS_N = 8;
@@ -94,6 +115,15 @@ static void melde(EreignisTyp t, Stopp g, int32_t a = 0, int32_t b = 0, int32_t 
   e.typ = t; e.grund = g; e.a = a; e.b = b; e.c = c;
   __dmb();
   ereignisKopf = k + 1;
+}
+
+// Kommen noch Messwerte? Zuerst den Zeitstempel lesen, dann die Uhr: Andersherum kann der
+// ADC-Interrupt dazwischen einen neueren Zeitstempel setzen, die Differenz wird negativ und
+// läuft (vorzeichenlos) über -> falscher Stopp "keine Messwerte".
+static inline bool messwerteVeraltet() {
+  if (!messwerteDa) return true;
+  const uint32_t t = letzterMesswertUs;
+  return (int32_t)(time_us_32() - t) > (int32_t)MESSWERT_TIMEOUT_US;
 }
 
 // logischer Pegel -> Pin (bei invertierter Verdrahtung umgekehrt)
@@ -116,9 +146,55 @@ static void enaAnwenden() {
   setzeAusgang(pEna, optoAn);
 }
 
+// ----- Simulation -----
+static inline float simZufallF() {                       // xorshift32, 0..1
+  simZufall ^= simZufall << 13;
+  simZufall ^= simZufall >> 17;
+  simZufall ^= simZufall << 5;
+  return (simZufall >> 8) * (1.0f / 16777216.0f);
+}
+
+// Simulierte Last in Counts über Tara (aus dem ADC-Interrupt)
+static int32_t simLast() {
+  const int32_t p = pos;
+  float g = 0.0f;
+  if (simWerkstueck && p > simOben) {
+    // Werkstück wird bis zur Werkzeugoberkante eingepresst: steiler Anstieg, dann flacher
+    float x = (float)(p - simOben) * simInvWeg;
+    if (x > 1.0f) x = 1.0f;
+    const float r = 1.0f - x;
+    float s = 0.35f * x + 0.65f * (1.0f - r * r);
+    s += 0.03f * r * (float)((p & 63) - 32) * (1.0f / 32.0f);   // Reibungs-Welligkeit, am Ende 0
+    g += simFspitze * s;
+  }
+  if (p > simWerkzeug) g += SIM_WERKZEUG_G_PRO_SCHRITT * (float)(p - simWerkzeug);
+  g += SIM_RAUSCHEN_G * (simZufallF() + simZufallF() - 1.0f);
+  return (int32_t)lroundf(g * P.countsProGramm);
+}
+
+// Neues virtuelles Werkstück mit etwas anderer Höhe und zufälliger Spitzenkraft
+static void simWerkstueckEinlegen() {
+  const float hoehe = P.simHoeheMm * P.schritteProMm * (0.97f + 0.06f * simZufallF());
+  float fmax = P.simFmaxG - 500.0f;                      // Platz für Werkzeugkontakt (ca. 16 Schritte) und Rauschen
+  if (fmax < P.simFminG) fmax = P.simFminG;
+  const float fspitze = P.simFminG + (fmax - P.simFminG) * simZufallF();
+  const uint32_t irq = save_and_disable_interrupts();
+  simOben = simWerkzeug - (int32_t)lroundf(hoehe < 1.0f ? 1.0f : hoehe);
+  simInvWeg = 1.0f / (float)(simWerkzeug - simOben);
+  simFspitze = fspitze;
+  simWerkstueck = true;
+  restore_interrupts(irq);
+}
+
 // Parameter übernehmen (nur im Stillstand)
 static void parameterUebernehmen(const Param &neu) {
+  const bool simStart = neu.simulation && !P.simulation;
   const uint32_t irq = save_and_disable_interrupts();    // ISR liest tara/maxCounts
+  if (simStart) {                                        // virtuelles Werkzeug unter der aktuellen Position
+    simWerkzeug = pos + (int32_t)lroundf(neu.simWerkzeugMm * neu.schritteProMm);
+    simWerkstueck = false;
+    simZufall = time_us_32() | 1u;
+  }
   P = neu;
   restore_interrupts(irq);
   if (!initOk) return;
@@ -174,7 +250,7 @@ static bool starten(int32_t schritte, float vMaxMmS) {
   if (schritte == 0) { stoppGrund = Stopp::ZIEL; return true; }
   if (P.schritteProMm <= 0.0f) return false;
   if (P.enaModus != 0 && !enaEin) return false;
-  if (!messwerteDa || time_us_32() - letzterMesswertUs > MESSWERT_TIMEOUT_US) {
+  if (messwerteVeraltet()) {
     stoppGrund = Stopp::MESSWERTE;
     letzterStopp = Stopp::MESSWERTE;
     return false;
@@ -236,6 +312,25 @@ static void rueckfahrt() {
   }
 }
 
+// ----- Pressvorgang: Teilschritte -----
+static void presseAbbruch(Stopp g) {
+  aufzeichnungPhase = 0;
+  zustand = Zustand::BEREIT;
+  melde(EreignisTyp::PRESSE_FEHLER, g == Stopp::KEIN ? Stopp::BEFEHL : g, pos, 0);
+}
+
+static void presseRueckfahrt() {
+  aufzeichnungPhase = 0;
+  zustand = Zustand::PR_ZURUECK;
+  if (!starten(startPos - pos, P.vFahrtMmS)) presseAbbruch(stoppGrund);
+}
+
+static void presseDruecken() {
+  zustand = Zustand::PR_DRUECKEN;
+  aufzeichnungPhase = PHASE_DRUECKEN;
+  if (!starten(P.presseEnde - pos, P.vPressMmS)) presseAbbruch(stoppGrund);
+}
+
 // Reaktion auf das Ende einer Teilfahrt
 static void ablauf() {
   if (laeuft || zustand == Zustand::BEREIT) return;
@@ -280,11 +375,59 @@ static void ablauf() {
         // Nullpunkt auf den Werkzeug-Endpunkt (erster Kontakt) legen
         const uint32_t irq = save_and_disable_interrupts();
         pos = pos - kontaktPos;
+        simWerkzeug -= kontaktPos;                       // Simulation: Welt mitverschieben
+        simOben -= kontaktPos;
         restore_interrupts(irq);
         referenziert = true;
         melde(EreignisTyp::KAL_FERTIG, ueberGrund, kontaktPos - startPos, endPos - kontaktPos, endLast);
       } else {
         melde(EreignisTyp::KAL_FEHLER, g);
+      }
+      break;
+
+    // ----- Pressvorgang -----
+    case Zustand::PR_ANFAHRT:
+      if (g == Stopp::ZIEL) {
+        presseDruecken();
+      } else if (g == Stopp::KRAFT) {
+        presseFehlerNachRueck = true;                    // Werkstück höher als der Anfahrpunkt
+        presseGrund = g;
+        presseRueckfahrt();
+      } else {
+        presseAbbruch(g);
+      }
+      break;
+
+    case Zustand::PR_DRUECKEN:
+      if (g == Stopp::ZIEL || g == Stopp::KRAFT) {
+        presseGrund = g;
+        presseEndPos = pos;
+        if (P.haltMs > 0) {
+          zustand = Zustand::PR_HALTEN;
+          aufzeichnungPhase = PHASE_HALTEN;
+          stoppGrund = Stopp::KEIN;                      // ab hier: Stopp-Befehl/Taster erkennen
+          haltStartMs = millis();
+        } else {
+          presseRueckfahrt();
+        }
+      } else {
+        presseAbbruch(g);
+      }
+      break;
+
+    case Zustand::PR_HALTEN:
+      if (g != Stopp::KEIN) presseAbbruch(g);
+      else if (millis() - haltStartMs >= P.haltMs) presseRueckfahrt();
+      break;
+
+    case Zustand::PR_ZURUECK:
+      zustand = Zustand::BEREIT;
+      if (g != Stopp::ZIEL) {
+        melde(EreignisTyp::PRESSE_FEHLER, g, pos, 0);
+      } else if (presseFehlerNachRueck) {
+        melde(EreignisTyp::PRESSE_FEHLER, presseGrund, pos, 1);
+      } else {
+        melde(EreignisTyp::PRESSE_FERTIG, presseGrund, presseEndPos);
       }
       break;
 
@@ -310,7 +453,13 @@ static void ausfuehren(BefehlTyp t, int32_t schritte, const Param &p) {
 
     case BefehlTyp::NULLPUNKT:
       if (!still) break;
-      pos = 0;
+      {
+        const uint32_t irq = save_and_disable_interrupts();
+        simWerkzeug -= pos;                              // Simulation: Welt mitverschieben
+        simOben -= pos;
+        pos = 0;
+        restore_interrupts(irq);
+      }
       referenziert = true;
       break;
 
@@ -328,6 +477,7 @@ static void ausfuehren(BefehlTyp t, int32_t schritte, const Param &p) {
       if (!still) break;
       if (alarmAktiv) { melde(EreignisTyp::KAL_FEHLER, Stopp::ALARM); break; }
       referenziert = false;
+      simWerkstueck = false;                             // Simulation: Kalibrieren ohne Werkstück
       startPos = pos;
       kontaktReferenz = emaQ4 >> 4;                      // Last vor Fahrtbeginn (Werkzeug in der Luft)
       kontaktScharf = true;
@@ -337,6 +487,23 @@ static void ausfuehren(BefehlTyp t, int32_t schritte, const Param &p) {
         kontaktScharf = false;
         zustand = Zustand::BEREIT;
         melde(EreignisTyp::KAL_FEHLER, stoppGrund == Stopp::KEIN ? Stopp::BEFEHL : stoppGrund);
+      }
+      break;
+    }
+
+    case BefehlTyp::PRESSEN: {
+      if (!still) break;
+      if (alarmAktiv) { melde(EreignisTyp::PRESSE_FEHLER, Stopp::ALARM, pos, 0); break; }
+      if (!referenziert || P.presseEnde <= pos) { melde(EreignisTyp::PRESSE_FEHLER, Stopp::BEFEHL, pos, 0); break; }
+      startPos = pos;
+      presseGrund = Stopp::KEIN;
+      presseFehlerNachRueck = false;
+      if (P.simulation) simWerkstueckEinlegen();         // Simulation: neues Werkstück je Pressung
+      if (pos < P.presseAnfahrt && P.presseAnfahrt < P.presseEnde) {
+        zustand = Zustand::PR_ANFAHRT;                   // Eilgang bis zum Anfahrpunkt
+        if (!starten(P.presseAnfahrt - pos, P.vFahrtMmS)) presseAbbruch(stoppGrund);
+      } else {
+        presseDruecken();                                // schon unterhalb des Anfahrpunkts
       }
       break;
     }
@@ -426,7 +593,7 @@ void schritt() {
   tasterUndAlarm();
 
   if (laeuft) {
-    if (time_us_32() - letzterMesswertUs > MESSWERT_TIMEOUT_US) anhalten(Stopp::MESSWERTE);
+    if (messwerteVeraltet()) anhalten(Stopp::MESSWERTE);
     else rampe();
   }
   ablauf();
@@ -435,13 +602,27 @@ void schritt() {
 void messwertIsr(uint32_t tMikros, int32_t counts) {
   letzterMesswertUs = tMikros;
   messwerteDa = true;
-  const int32_t last = (counts - P.tara) * P.vorzeichen;          // > 0 = Last
+  const int32_t last = P.simulation ? simLast()                   // Simulation: Last aus der Position
+                                    : (counts - P.tara) * P.vorzeichen;   // > 0 = Last
   puf4Summe += last - puf4[pufIndex];
   puf4[pufIndex] = last;
   pufIndex = (uint8_t)((pufIndex + 1) & 3);
   const int32_t m = puf4Summe / 4;
   lastMittel = m;
   emaQ4 = emaQ4 + (((last << 4) - emaQ4) / 32);                   // ca. 16 ms bei 2000 SPS
+
+  const uint8_t phase = aufzeichnungPhase;
+  if (phase != 0) {
+    const uint32_t k = probenKopf;
+    if (k - probenEnde < PROBEN_N) {
+      Probe &pr = proben[k & (PROBEN_N - 1)];
+      pr.tMikros = tMikros; pr.position = pos; pr.last = last; pr.phase = phase;
+      __dmb();
+      probenKopf = k + 1;
+    } else {
+      probenVerloren = probenVerloren + 1;
+    }
+  }
 
   if (laeuft && richtung > 0) {                                   // nur Abwärtsfahrten begrenzen
     if (last >= P.maxCounts) {
@@ -498,6 +679,18 @@ bool ereignisHolen(Ereignis &e) {
   return true;
 }
 
+bool aufzeichnungHolen(Probe &p) {
+  const uint32_t ende = probenEnde;
+  if (probenKopf == ende) return false;
+  __dmb();
+  p = proben[ende & (PROBEN_N - 1)];
+  __dmb();
+  probenEnde = ende + 1;
+  return true;
+}
+
+uint32_t aufzeichnungVerloren() { return probenVerloren; }
+
 bool beschaeftigt() {
   return laeuft || zustand != Zustand::BEREIT || befehlTyp != BefehlTyp::KEIN;
 }
@@ -509,6 +702,10 @@ const char *zustandText(Zustand z) {
     case Zustand::SUCHE:     return "Kontaktsuche";
     case Zustand::UEBERLAUF: return "Ueberlauf";
     case Zustand::ZURUECK:   return "Rueckfahrt";
+    case Zustand::PR_ANFAHRT:  return "Presse: Anfahrt";
+    case Zustand::PR_DRUECKEN: return "Presse: Druecken";
+    case Zustand::PR_HALTEN:   return "Presse: Halten";
+    case Zustand::PR_ZURUECK:  return "Presse: Rueckfahrt";
   }
   return "?";
 }
