@@ -214,10 +214,10 @@ an, sobald Kontakt oder die Maximalkraft erreicht ist. Aufwärts darf der Motor 
 |---|---|---|
 | GP2 | PUL | Der HB808C braucht 4,5–28 V an den Eingängen (PUL, DIR, ENA). Über einen 5-V-Pegelwandler (z. B. 74AHCT125) oder gemeinsame Anode an 5 V mit Transistor gegen GND anschließen; dann `mp inv 1`. |
 | GP3 | DIR | wie PUL |
-| GP4 | ENA (optional) | wie PUL |
+| GP4 | ENA (empfohlen) | wie PUL. Über den Not-Aus-Kreis führen, damit der Not-Aus den Motor auch ohne Pico stromlos schaltet. |
 | GP5 | ALM (optional) | Alarmausgang des Treibers, z. B. bei Schleppfehler. Mit `mp alm 1` bzw. `2` aktivieren. |
 | GP6 | START-Taster gegen GND | Startet eine Pressung (wenn alles bereit ist). |
-| GP7 | STOPP-Taster gegen GND | Hält sofort an. Ersetzt keinen Not-Aus. |
+| GP7 | STOPP-Taster gegen GND | Hält sofort an (Software). Ersetzt keinen Not-Aus. |
 
 ### Einrichten
 
@@ -244,9 +244,16 @@ Werkstück. Nach jedem Einschalten nötig, weil die Position des Motors dann unb
 Ohne Lastanstieg im ganzen Hub bricht die Fahrt mit „kein Kontakt“ ab. Bei jedem Abbruch bleibt der Motor an der
 Abbruchstelle stehen; mit `mot auf <mm>` wieder hochfahren.
 
+**Sensorfehler:** Steht der Messwert am Anschlag des ADC (z. B. Aderbruch, fehlende Brückenspeisung) oder ändert er
+sich 64 Werte lang überhaupt nicht (ADC oder SPI hängt), ist die Kraft unbekannt. Dann hält jede Abwärtsfahrt sofort
+an („Sensorfehler“), und keine neue startet. Hochfahren mit `mot auf <mm>` bleibt möglich. Im Protokoll steht
+„SENSORFEHLER“ und wieder „Sensor wieder plausibel“, sobald die Messwerte 0,5 s lang in Ordnung sind. In der
+Simulation wird nicht geprüft.
+
 > **Kraftreserve:** Ein Nema-23-Motor an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken.
-> Die Kraftgrenze im Pico ist schnell, aber Software. Einen Not-Aus, der die Motorversorgung trennt, und einen
-> mechanischen Anschlag vorsehen. Die ersten Fahrten mit kleiner Grenze (`mp fmax 2000`) machen.
+> Die Kraftgrenze im Pico ist schnell, aber Software. Einen fest verdrahteten Not-Aus, der die Motorversorgung
+> bzw. ENA trennt, und einen mechanischen Anschlag vorsehen. Die ersten Fahrten mit kleiner Grenze
+> (`mp fmax 2000`) machen.
 
 ### Parameter
 
@@ -428,7 +435,7 @@ Eingabe im Feld unter dem Protokoll oder im seriellen Monitor (Zeilenende „Neu
 | `sim par` / `sim <name> <wert>` | Simulationsparameter anzeigen / setzen: `werkzeug weg fmin fmax rauschen riss spitze` |
 | `sit` | Sitzungen anzeigen; `sit neu <Name>`, `sit wahl <Nr>`, `sit zu`, `sit loeschen <Nr> ja` |
 | `wlan [an\|aus]` | WLAN-Status bzw. ein-/ausschalten (wieder an nur über USB) |
-| `wd` | Watchdog-Status und Grund des letzten Neustarts (`wd test 0\|1` hängt einen Kern zum Test auf und löst einen Neustart aus) |
+| `wd` | Watchdog-Status, Grund des letzten Neustarts und höchste Stapelbelegung beider Kerne (`wd test 0\|1` hängt einen Kern zum Test auf und löst einen Neustart aus) |
 | `c` | Selbstkalibrierung des ADC (Offset und Verstärkung) |
 | `d` | Register des ADS1256 anzeigen |
 | `init` | ADS1256 neu starten |

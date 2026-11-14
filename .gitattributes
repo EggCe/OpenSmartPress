@@ -1,0 +1,2 @@
+# Shell-Skripte immer mit LF (mit CRLF scheitert "sh tests/host/run.sh" in WSL)
+*.sh text eol=lf

@@ -217,6 +217,7 @@ static void webEinzelpresse() {
 }
 
 static void webSitzungAktion() {
+  if (!webSchreibenErlaubt()) return;
   const String a = srv->arg("a");
   const uint16_t id = argId("id");
   bool ok = false;
@@ -238,6 +239,7 @@ static void webSitzungAktion() {
 }
 
 static void webZeit() {
+  if (!webSchreibenErlaubt()) return;
   zeitSetzen(strtoul(srv->arg("t").c_str(), nullptr, 10), (int32_t)strtol(srv->arg("tz").c_str(), nullptr, 10));
   srv->send(200, "text/plain", "ok");
 }

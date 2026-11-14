@@ -10,6 +10,7 @@
  * (sende/stopp) und die Ereignis-Warteschlange zu.
  */
 #include "Antrieb.h"
+#include "SensorWaechter.h"
 #include <hardware/pwm.h>
 #include <hardware/gpio.h>
 #include <hardware/irq.h>
@@ -17,6 +18,7 @@
 #include <hardware/sync.h>
 #include <hardware/timer.h>
 #include <hardware/structs/pwm.h>
+#include <hardware/structs/iobank0.h>
 
 namespace antrieb {
 
@@ -59,6 +61,13 @@ static volatile bool     kontaktScharf = false;
 static volatile int32_t  kontaktReferenz = 0;
 static volatile uint32_t letzterMesswertUs = 0;
 static volatile bool     messwerteDa = false;
+
+// Sensorfehler (aus dem ADC-Interrupt), Meldung an Kern 0 aus loop1
+static SensorWaechter    sensor;                 // nur im ADC-Interrupt benutzt
+static volatile uint8_t  sensorArt = SensorWaechter::OK;   // 0 = in Ordnung (Simulation: immer 0)
+static volatile int32_t  sensorRoh = 0;          // letzter Rohwert (für die Meldung)
+static uint8_t           sensorGemeldet = SensorWaechter::OK;
+static uint32_t          sensorOkMs = 0;
 
 // Ablauf
 static volatile Zustand zustand = Zustand::BEREIT;
@@ -131,8 +140,12 @@ static inline void setzeAusgang(uint8_t pin, bool logisch) {
   gpio_put(pin, logisch != (P.invertiert != 0));
 }
 
-static inline void pulsRuhepegel() {
-  gpio_set_outover(pPuls, P.invertiert ? GPIO_OVERRIDE_HIGH : GPIO_OVERRIDE_LOW);
+// Wie gpio_set_outover(), aber ohne Funktionsaufruf in den Flash (wird aus Interrupts im RAM
+// und von notHalt() auf Kern 0 benutzt; nur über den atomaren XOR-Alias)
+static inline __attribute__((always_inline)) void pulsRuhepegel() {
+  const uint32_t ueber = P.invertiert ? GPIO_OVERRIDE_HIGH : GPIO_OVERRIDE_LOW;
+  hw_write_masked(&io_bank0_hw->io[pPuls].ctrl, ueber << IO_BANK0_GPIO0_CTRL_OUTOVER_LSB,
+                  IO_BANK0_GPIO0_CTRL_OUTOVER_BITS);
 }
 
 // ENA-Ausgang: Modus 1 = Optokoppler an schaltet den Motor AUS (übliche Logik), 2 = schaltet EIN
@@ -147,7 +160,7 @@ static void enaAnwenden() {
 }
 
 // ----- Simulation -----
-static inline float simZufallF() {                       // xorshift32, 0..1
+static inline __attribute__((always_inline)) float simZufallF() {                       // xorshift32, 0..1
   simZufall ^= simZufall << 13;
   simZufall ^= simZufall >> 17;
   simZufall ^= simZufall << 5;
@@ -155,7 +168,7 @@ static inline float simZufallF() {                       // xorshift32, 0..1
 }
 
 // Simulierte Last in Counts über Tara (aus dem ADC-Interrupt)
-static int32_t simLast() {
+static int32_t __not_in_flash_func(simLast)() {
   const int32_t p = pos;
   float g = 0.0f;
   if (simWerkstueck && p > simOben) {
@@ -176,7 +189,8 @@ static int32_t simLast() {
   }
   if (p > simWerkzeug) g += SIM_WERKZEUG_G_PRO_SCHRITT * (float)(p - simWerkzeug);
   g += P.simRauschenG * (simZufallF() + simZufallF() - 1.0f);
-  return (int32_t)lroundf(g * P.countsProGramm);
+  const float c = g * P.countsProGramm;
+  return (int32_t)(c >= 0.0f ? c + 0.5f : c - 0.5f);          // gerundet, ohne lroundf() aus dem Flash
 }
 
 // Neues virtuelles Werkstück mit etwas anderer Höhe und zufälliger Spitzenkraft
@@ -228,14 +242,14 @@ static void setzeFrequenz(float f) {
 }
 
 // Sofort anhalten. Aufrufbar aus loop1, PWM- und ADC-Interrupt (alle Kern 1).
-static void anhalten(Stopp s) {
+static void __not_in_flash_func(anhalten)(Stopp s) {
   const uint32_t irq = save_and_disable_interrupts();
   if (laeuft) {
     // Läuft gerade ein Impuls, ihn zu Ende ausgeben (max. 5 µs), damit der Treiber ihn sicher zählt
     const uint32_t t0 = time_us_32();
     while (pwm_get_counter(slice) < PULS_TAKTE && time_us_32() - t0 < 10) { }
     pulsRuhepegel();                                     // ab jetzt kein Impuls mehr am Pin
-    pwm_set_enabled(slice, false);
+    hw_clear_bits(&pwm_hw->slice[slice].csr, PWM_CH0_CSR_EN_BITS);   // = pwm_set_enabled(false), ohne Flash
     // Überlauf passiert, aber noch nicht gezählt (PWM-Interrupt war blockiert)?
     if (pwm_hw->intr & (1u << slice)) {
       pwm_clear_irq(slice);
@@ -248,7 +262,7 @@ static void anhalten(Stopp s) {
   restore_interrupts(irq);
 }
 
-static void pwmIsr() {
+static void __not_in_flash_func(pwmIsr)() {
   if (!(pwm_hw->ints & (1u << slice))) return;          // geteilter Interrupt: nicht unserer
   pwm_clear_irq(slice);
   if (!laeuft) return;
@@ -263,6 +277,11 @@ static bool starten(int32_t schritte, float vMaxMmS) {
   if (schritte == 0) { stoppGrund = Stopp::ZIEL; return true; }
   if (P.schritteProMm <= 0.0f) return false;
   if (P.enaModus != 0 && !enaEin) return false;
+  if (schritte > 0 && sensorArt != SensorWaechter::OK) {   // Last unbekannt: nur Aufwärtsfahrten
+    stoppGrund = Stopp::SENSOR;
+    letzterStopp = Stopp::SENSOR;
+    return false;
+  }
   if (messwerteVeraltet()) {
     stoppGrund = Stopp::MESSWERTE;
     letzterStopp = Stopp::MESSWERTE;
@@ -605,6 +624,20 @@ void schritt() {
 
   tasterUndAlarm();
 
+  // Sensorfehler an Kern 0 melden: Beginn sofort, Ende erst nach 500 ms ohne Fehler
+  // (kein Flattern an der Übersteuerungsgrenze). melde() nur hier, nie aus Interrupts.
+  {
+    const uint8_t sa = sensorArt;
+    const uint32_t ms = millis();
+    if (sa != SensorWaechter::OK) {
+      sensorOkMs = ms;
+      if (sensorGemeldet != sa) { sensorGemeldet = sa; melde(EreignisTyp::SENSOR, Stopp::SENSOR, sa, sensorRoh); }
+    } else if (sensorGemeldet != SensorWaechter::OK && ms - sensorOkMs >= 500) {
+      sensorGemeldet = SensorWaechter::OK;
+      melde(EreignisTyp::SENSOR, Stopp::KEIN, SensorWaechter::OK, sensorRoh);
+    }
+  }
+
   if (laeuft) {
     if (messwerteVeraltet()) anhalten(Stopp::MESSWERTE);
     else rampe();
@@ -612,9 +645,14 @@ void schritt() {
   ablauf();
 }
 
-void messwertIsr(uint32_t tMikros, int32_t counts) {
+void __not_in_flash_func(messwertIsr)(uint32_t tMikros, int32_t counts) {
   letzterMesswertUs = tMikros;
   messwerteDa = true;
+  // Sensor plausibel? In der Simulation kommt die Last aus dem Modell, der Rohwert zählt dann nicht.
+  const uint8_t art = sensor.pruefe(counts);
+  const uint8_t sf  = P.simulation ? (uint8_t)SensorWaechter::OK : art;
+  sensorArt = sf;
+  sensorRoh = counts;
   const int32_t last = P.simulation ? simLast()                   // Simulation: Last aus der Position
                                     : (counts - P.tara) * P.vorzeichen;   // > 0 = Last
   puf4Summe += last - puf4[pufIndex];
@@ -622,7 +660,7 @@ void messwertIsr(uint32_t tMikros, int32_t counts) {
   pufIndex = (uint8_t)((pufIndex + 1) & 3);
   const int32_t m = puf4Summe / 4;
   lastMittel = m;
-  emaQ4 = emaQ4 + (((last << 4) - emaQ4) / 32);                   // ca. 16 ms bei 2000 SPS
+  emaQ4 = emaQ4 + ((last * 16 - emaQ4) / 32);                     // ca. 16 ms bei 2000 SPS
 
   const uint8_t phase = aufzeichnungPhase;
   if (phase != 0) {
@@ -638,7 +676,9 @@ void messwertIsr(uint32_t tMikros, int32_t counts) {
   }
 
   if (laeuft && richtung > 0) {                                   // nur Abwärtsfahrten begrenzen
-    if (last >= P.maxCounts) {
+    if (sf != SensorWaechter::OK) {
+      anhalten(Stopp::SENSOR);                                    // Last unbekannt: sofort halt
+    } else if (last >= P.maxCounts) {
       anhalten(Stopp::KRAFT);
     } else if (kontaktScharf && m - kontaktReferenz >= P.kontaktCounts) {
       kontaktScharf = false;
@@ -679,6 +719,7 @@ Status status() {
   s.position     = pos;
   s.lastCounts   = lastMittel;
   s.letzterStopp = letzterStopp;
+  s.sensor       = sensorArt;
   return s;
 }
 
@@ -734,6 +775,7 @@ const char *stoppText(Stopp s) {
     case Stopp::BEFEHL:       return "Stopp-Befehl";
     case Stopp::MESSWERTE:    return "keine Messwerte";
     case Stopp::KEIN_KONTAKT: return "kein Kontakt im Hub gefunden";
+    case Stopp::SENSOR:       return "Sensorfehler (Messwert uebersteuert/eingefroren)";
   }
   return "?";
 }

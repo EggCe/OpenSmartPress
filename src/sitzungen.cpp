@@ -24,6 +24,8 @@ static int32_t  zeitZone = 0;       // Minuten östlich von UTC
 // ===========================================================================
 // Hilfsfunktionen
 // ===========================================================================
+bool dateisystemOk() { return fsOk; }
+
 void sitzungPfad(char *puf, size_t n, uint16_t id, const char *datei) {
   snprintf(puf, n, "/s/%04u/%s", id, datei);
 }

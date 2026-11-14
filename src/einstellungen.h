@@ -1,9 +1,14 @@
 /*
- * einstellungen.h - Im Flash gespeicherte Einstellungen (EEPROM-Emulation, 256 Byte)
+ * einstellungen.h - Im Flash gespeicherte Einstellungen
  *
+ * Speicherort: Datei /einst.bin im LittleFS (128 Byte = die drei Blöcke hintereinander).
+ * Gespeichert wird stromausfallsicher: /einst.neu schreiben, zurücklesen, auf /einst.bin
+ * umbenennen (LittleFS ersetzt atomar). Ohne Dateisystem und als Rückfallebene beim Laden
+ * (ältere Firmware) dient die EEPROM-Emulation (256 Byte):
  *   Adresse  0: Einstellungen (32 Byte, Magic "WLZ1")
  *   Adresse 64: MotorEinst    (64 Byte, Magic "MOT1")
  *   Adresse 128: PresseEinst  (32 Byte, Magic "PRS1")
+ * Jeder Block wird einzeln geprüft: erst aus der Datei, sonst aus dem EEPROM, sonst Standard.
  *
  * Layout ändern: Größe über die reservierten Bytes halten (static_assert) oder die
  * Version erhöhen. Passt Magic, Version oder CRC nicht, gelten die Standardwerte.
@@ -75,5 +80,5 @@ extern PresseEinst   pres;
 void standardEinstellungen();
 void motorStandard();
 void presseStandard();
-void einstellungenStarten();        // EEPROM öffnen, alle Blöcke laden bzw. Standardwerte, melden
+void einstellungenStarten();        // nach sitzungenStarten(): Blöcke laden bzw. Standardwerte, melden
 bool speichereEinstellungen();      // alle Blöcke mit CRC schreiben

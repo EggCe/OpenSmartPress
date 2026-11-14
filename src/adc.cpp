@@ -12,6 +12,10 @@
 #include "verarbeitung.h"
 #include "watchdog.h"
 #include "web/livedaten.h"
+#include "treiber/SensorWaechter.h"
+
+static_assert(SensorWaechter::CLIP_GRENZE == ADS1256::CLIP_GRENZE,
+              "Uebersteuerungsgrenze im SensorWaechter und im ADS1256-Treiber muss gleich sein");
 
 ADS1256 ads(SPI, PIN_ADS_CS, PIN_ADS_DRDY, PIN_ADS_PDWN, VREF_V, SPI_TAKT_HZ);
 bool    adsOk = false;

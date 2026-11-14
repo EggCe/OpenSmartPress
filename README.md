@@ -18,8 +18,10 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 - **Rauschanalyse**: Standardabweichung in Counts, µV und Gramm, effektive und rauschfreie Auflösung,
   Streuung nach Mittelung auf 10 SPS. Mit `nv` werden mehrere Datenraten automatisch verglichen.
 - **Überwachung**: Warnung ab 100 % Nennlast, Alarm ab 120 % (LED), Erkennung eines übersteuerten ADC.
+  Ein Sensorfehler (Messwert am Anschlag oder eingefroren) stoppt und sperrt jede Abwärtsfahrt.
 - **PC-Programm** `tools/waegezelle_plot.py` für die Aufzeichnung jedes einzelnen Messwerts über USB.
-- Einstellungen (Tara, Faktor, Glättung, Datenrate) bleiben im Flash gespeichert.
+- Einstellungen (Tara, Faktor, Glättung, Datenrate, Antrieb) bleiben im Flash gespeichert, stromausfallsicher
+  in der Datei `/einst.bin` (LittleFS).
 
 ## Hardware
 
@@ -62,13 +64,24 @@ Nema-23-Closed-Loop-Schrittmotor mit Treiber **HB808C** (PUL/DIR, 24–80 V, Sig
 |---|---|---|
 | GP2 | PUL | über 5-V-Pegelwandler (z. B. 74AHCT125) oder Transistor, 3,3 V reichen nicht |
 | GP3 | DIR | wie PUL |
-| GP4 | ENA | optional (`mp ena`) |
+| GP4 | ENA | empfohlen (`mp ena`), über den Not-Aus-Kreis führen |
 | GP5 | ALM | optional, Alarmausgang des Treibers (`mp alm`) |
 | GP6 | START-Taster gegen GND | startet eine Pressung (wenn alles bereit ist) |
-| GP7 | STOPP-Taster gegen GND | hält sofort an |
+| GP7 | STOPP-Taster gegen GND | hält sofort an (Software, kein Not-Aus) |
 
 Ein Nema 23 an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken. Die Kraftgrenze im Pico ist schnell,
-ersetzt aber keinen **Not-Aus**, der die Motorversorgung trennt, und keinen mechanischen Anschlag.
+ersetzt aber keinen **Not-Aus** und keinen mechanischen Anschlag.
+
+**Not-Aus (Pflicht für den Betrieb):** Der STOPP-Taster an GP7 wird von der Firmware abgefragt. Hängt die Firmware
+oder ist Kern 1 gerade mit dem ADC beschäftigt (Selbstkalibrierung, bis ca. 3 s), wirkt er nicht. Ein Not-Aus muss
+deshalb **fest verdrahtet** und unabhängig vom Pico sein (EN ISO 13850, Auslegung nach EN ISO 13849-1):
+
+- Not-Aus-Taster (rastend, Öffner, zwangsöffnend) in Reihe mit der Spule eines Sicherheitsrelais bzw. Schützes.
+- Das Schütz trennt die Versorgung des HB808C (24–80 V). Zusätzlich ENA über einen zweiten Öffnerkontakt führen,
+  damit der Treiber auch bei klebendem Schütz gesperrt ist; in der Firmware dann `mp ena 1` bzw. `2`.
+- Nach dem Entriegeln darf der Motor nicht von selbst anlaufen: Das Schütz zieht erst über einen separaten
+  Freigabe-Taster wieder an (Selbsthaltung). Danach Hub neu kalibrieren, die Position ist unbekannt.
+- Ohne ENA erinnert die Firmware bei der ersten Fahrt nach dem Einschalten daran.
 
 **Für wenig Rauschen:** ADS1256-Modul ebenfalls aus dem LT3042 versorgen, Sternmasse am AGND des ADS1256,
 Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des WLAN-Funks kannst du mit
@@ -276,15 +289,18 @@ Waegezelle_Test/
 │   ├── usb_ausgabe.*          Ausgabemodi lesbar/CSV/Plotter/binär, #CFG-Zeile
 │   ├── befehle.*              Befehle aus seriellem Monitor und Weboberfläche
 │   ├── motor.*                Antrieb auf Kern 0: Parameter, Sicherheitsprüfungen, Meldungen
-│   ├── einstellungen.*        Einstellungen im Flash (Tara, Faktor, Antrieb)
+│   ├── einstellungen.*        Einstellungen im Flash (/einst.bin, Rückfall EEPROM): Tara, Faktor, Antrieb
 │   ├── meldung.*              Meldungen an USB und Web-Protokoll
 │   ├── pruefsumme.*           CRC-32 (Flash) und CRC-8 (Binärrahmen)
-│   ├── watchdog.*             Hardware-Watchdog für Kern 0, Herzschlag-Überwachung von Kern 1
+│   ├── rahmen.h               USB-Binärrahmen (Modus 4)
+│   ├── welford.h              Welford-Statistik (Mittelwert, Streuung)
+│   ├── watchdog.*             Hardware-Watchdog für Kern 0, Herzschlag-Überwachung von Kern 1, Stapelbelegung
 │   ├── presse.*               Pressvorgang: Startprüfung, Kraft-Weg-Kurve, Kennwerte
 │   ├── sitzungen.*            Sitzungen und Pressungen im Flash (LittleFS)
 │   ├── treiber/
-│   │   ├── ADS1256.*          RDATAC-Dauerbetrieb, Interrupt, Ringpuffer, Lückenerkennung
-│   │   └── Antrieb.*          HB808C: PWM-Schritte, Rampen, Endpunkt-Kalibrierung, Kraftüberwachung
+│   │   ├── ADS1256.*          RDATAC-Dauerbetrieb, Interrupt (im RAM), Ringpuffer, Lückenerkennung
+│   │   ├── Antrieb.*          HB808C: PWM-Schritte, Rampen, Endpunkt-Kalibrierung, Kraftüberwachung
+│   │   └── SensorWaechter.h   Sensorfehler: Messwert übersteuert oder eingefroren
 │   └── web/
 │       ├── wlan.*             WLAN-Verbindung, mDNS
 │       ├── webserver.*        HTTP-Routen, JSON für /daten
@@ -292,6 +308,8 @@ Waegezelle_Test/
 │       ├── livedaten.*        Diagrammpunkte und Live-Statistik
 │       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webstil.h
 ├── tools/waegezelle_plot.py   PC-Programm für Live-Anzeige und Aufzeichnung über USB
+├── tests/host/                Tests der hardwareunabhängigen Logik auf dem PC (sh tests/host/run.sh)
+├── .github/workflows/         CI: Tests, Übersetzen ohne Warnungen, RAM-Grenze
 └── docs/                      Verdrahtungsplan
 ```
 
@@ -321,23 +339,41 @@ Gramm = (Counts − tara) / faktor
 | Adresse | Inhalt |
 |---|---|
 | `GET /daten?p=<punkt>&l=<log>` | JSON: Konfiguration, Diagrammpunkte (Zeit, Mittel, Min, Max, geglättet), Statistik, neue Protokollzeilen |
-| `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus |
+| `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus (Kopfzeile `X-Waegezelle: 1` nötig, siehe unten) |
 | `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, Rohdatenstand, neue Protokollzeilen |
 | `GET /presse/roh?id=&ab=` | binär: jede Probe der laufenden/letzten Pressung ab Probe `ab` (Kopf 48 Byte + 8 Byte je Probe, Format in `src/web/presse_web.cpp` und `src/presse.h`) |
 | `GET /sitzungen` | JSON: alle Sitzungen und Speicherbelegung |
 | `GET /sitzung/index?id=` / `GET /sitzung/presse?id=&nr=` | binär: Köpfe aller Pressungen / eine Pressung (Format in `src/sitzungen.h`) |
 | `GET /sitzung/export?id=&f=csv\|json` | Export zum Herunterladen |
-| `POST /sitzung` mit `a=neu\|wahl\|zu\|aendern\|loeschen` | Sitzungen verwalten |
+| `POST /sitzung` mit `a=neu\|wahl\|zu\|aendern\|loeschen` | Sitzungen verwalten (Kopfzeile `X-Waegezelle: 1`) |
+| `POST /zeit` mit `t=<unix>&tz=<min>` | Uhrzeit vom Browser (Kopfzeile `X-Waegezelle: 1`) |
+
+Schreibende Anfragen (`POST /cmd`, `/sitzung`, `/zeit`) müssen die Kopfzeile `X-Waegezelle: 1` mitschicken, sonst
+antwortet der Pico mit 403. Ein Browser setzt eine solche Kopfzeile für eine fremde Webseite nur nach einer
+CORS-Vorabfrage, die der Pico nie erlaubt. So kann keine andere Webseite (Link, Bild, Formular) einen Befehl oder
+eine Fahrt auslösen. Von der Kommandozeile:
+
+```
+curl -X POST -H "X-Waegezelle: 1" --data "c=i" http://waegezelle.local/cmd
+```
 
 ## Hinweise
 
-- Die Weboberfläche hat **keinen Passwortschutz**. Jeder im selben WLAN kann tarieren, kalibrieren oder die
-  Datenrate ändern.
+- Die Weboberfläche hat **keinen Passwortschutz**. Jeder im selben WLAN kann tarieren, kalibrieren, die
+  Datenrate ändern und den Antrieb fahren. Die Kopfzeile `X-Waegezelle` schützt nur vor fremden Webseiten im
+  Browser, nicht vor Programmen im Netz. Die Presse daher nur in einem eigenen, vertrauenswürdigen WLAN betreiben.
 - Beim Speichern (`s`) und bei Ratenwechseln gehen kurz Messwerte verloren; sie werden gezählt.
 - `wlan aus` lässt sich nur über USB rückgängig machen.
 - **Watchdog:** Hängt Kern 0 länger als 8 s, startet der Pico neu. Kern 1 meldet sich ständig mit einem
   Herzschlag; bleibt er länger als 1 s aus, sperrt Kern 0 sofort die Schrittimpulse und startet neu. Nach so einem
   Neustart steht eine Warnung im Protokoll, `wd` zeigt den Grund. Ungespeicherte Tara/Kalibrierung geht dabei verloren.
+  `wd` zeigt außerdem, wie viel Stapel jeder Kern seit dem Start höchstens belegt hat.
+- **Einstellungen speichern (`s`):** Die Firmware schreibt `/einst.neu`, liest sie zurück und benennt sie auf
+  `/einst.bin` um. Ein Stromausfall dabei hinterlässt immer die alte oder die neue Fassung. Ältere Firmware
+  speicherte im EEPROM-Bereich; diese Werte werden beim ersten Start übernommen und mit `s` in die Datei geschrieben.
+- **Tests:** `sh tests/host/run.sh` (braucht g++, unter Windows z. B. in WSL) prüft CRC, Binärrahmen, Statistik und
+  die Sensorfehler-Erkennung auf dem PC. Die GitHub-Action `.github/workflows/firmware.yml` führt diese Tests aus und
+  übersetzt die Firmware; sie schlägt bei Compiler-Warnungen oder mehr als 224 000 Byte statischem RAM fehl.
 
 ## Lizenz
 

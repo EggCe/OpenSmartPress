@@ -2,7 +2,7 @@
 
 #include "konfig.h"
 #include "meldung.h"
-#include "pruefsumme.h"
+#include "rahmen.h"
 #include "einstellungen.h"
 #include "adc.h"
 #include "filter.h"
@@ -66,16 +66,8 @@ void ausgabe(const ADS1256::Messwert &m) {
     }
 
     case MODUS_BINAER: {
-      uint8_t f[8];
-      const uint32_t c = (uint32_t)m.counts;
-      f[0] = 0xA5;
-      f[1] = 0x5A;
-      f[2] = (uint8_t)(m.seq);
-      f[3] = (uint8_t)(m.seq >> 8);
-      f[4] = (uint8_t)(c);
-      f[5] = (uint8_t)(c >> 8);
-      f[6] = (uint8_t)(c >> 16);
-      f[7] = crc8(&f[2], 5);
+      uint8_t f[RAHMEN_LAENGE];
+      binaerRahmen(f, m.seq, m.counts);
       puffern(f, sizeof(f));
       break;
     }

@@ -5,6 +5,33 @@
 #include <hardware/gpio.h>
 #include <hardware/irq.h>
 #include <hardware/sync.h>
+#include <hardware/structs/iobank0.h>
+#include <hardware/timer.h>
+
+// Das Objekt mit aktivem DRDY-Interrupt (es gibt nur einen ADS1256)
+static ADS1256 *isrInstanz = nullptr;
+static bool     isrHandlerDa = false;   // GPIO-Handler auf Kern 1 eingetragen
+
+// Warten ohne Funktionsaufruf in den Flash (aus dem Interrupt): mindestens 'us' Mikrosekunden
+static inline __attribute__((always_inline)) void warteUs(uint32_t us) {
+  const uint32_t t0 = time_us_32();
+  while (time_us_32() - t0 <= us) { }
+}
+
+// 3 Bytes lesen (0x00 senden) direkt über die SPI-Register: Takt, Modus und 8 Bit hat die
+// letzte beginTransaction() schon eingestellt. Bytes ohne Pause hintereinander (FIFO 8 tief).
+static inline __attribute__((always_inline)) void spiLesen3(spi_inst_t *spi, uint8_t *rx) {
+  spi_hw_t *hw = spi_get_hw(spi);
+  while (hw->sr & SPI_SSPSR_RNE_BITS) (void)hw->dr;          // alte Empfangsdaten verwerfen
+  for (int i = 0; i < 3; i++) {
+    while (!(hw->sr & SPI_SSPSR_TNF_BITS)) { }
+    hw->dr = 0x00;
+  }
+  for (int i = 0; i < 3; i++) {
+    while (!(hw->sr & SPI_SSPSR_RNE_BITS)) { }
+    rx[i] = (uint8_t)hw->dr;
+  }
+}
 
 // Datenraten für 7,68-MHz-Quarz
 const ADS1256::RateEntry ADS1256::RATES[] = {
@@ -129,6 +156,7 @@ ADS1256::Status ADS1256::begin(const Config &cfg) {
   }
   _cfg = cfg;
   _chipId = 0xFF;
+  _hwSpi = (&_spi == &SPI1) ? spi1 : spi0;
   neuePeriode();
 
   pinMode(_pinCS, OUTPUT);
@@ -281,12 +309,20 @@ void ADS1256::clearOverruns() {
 // ---------------------------------------------------------------------------
 // DRDY-Interrupt
 // ---------------------------------------------------------------------------
-void ADS1256::isrTrampoline(void *param) {
-  static_cast<ADS1256 *>(param)->isrLesen();
+// Geteilter GPIO-Interrupt dieses Kerns: nur auf die eigene fallende DRDY-Flanke reagieren
+void __not_in_flash_func(ADS1256::isrRoh)() {
+  ADS1256 *a = isrInstanz;
+  if (!a) return;
+  const uint32_t pin = a->_pinDRDY;
+  const uint32_t maske = (uint32_t)GPIO_IRQ_EDGE_FALL << (4u * (pin % 8u));
+  io_bank0_irq_ctrl_hw_t *ctrl = get_core_num() ? &io_bank0_hw->proc1_irq_ctrl : &io_bank0_hw->proc0_irq_ctrl;
+  if (!(ctrl->ints[pin / 8u] & maske)) return;
+  io_bank0_hw->intr[pin / 8u] = maske;                       // Flanke quittieren (wie gpio_acknowledge_irq)
+  a->isrLesen();
 }
 
-void ADS1256::isrLesen() {
-  const uint32_t jetzt = micros();
+void __not_in_flash_func(ADS1256::isrLesen)() {
+  const uint32_t jetzt = time_us_32();                       // gleiche Zeitbasis wie micros()
   if (!_continuous) return;
 
   // --- Laufende Nummer, Lücken aus dem Zeitabstand erkennen ---
@@ -298,8 +334,11 @@ void ADS1256::isrLesen() {
     const uint32_t dt = jetzt - _letzteFlanke;
     spaet = dt > _spaetUs;
     if (dt > _lueckeUs) {
-      // Anzahl Perioden seit der letzten Flanke (gerundet), davon ist eine diese
-      uint32_t perioden = (uint32_t)(((uint64_t)dt * 1000u + _periodeNs / 2u) / _periodeNs);
+      // Anzahl Perioden seit der letzten Flanke (gerundet), davon ist eine diese. Bis 3,5 s
+      // Lücke reicht 32-Bit-Rechnung (Hardware-Teiler); 64 Bit nur für noch längere Lücken.
+      const uint32_t perioden = (dt < 3500000u)
+          ? (dt * 1000u + _periodeNs / 2u) / _periodeNs
+          : (uint32_t)(((uint64_t)dt * 1000u + _periodeNs / 2u) / _periodeNs);
       if (perioden > 1) {
         seq += perioden - 1;
         _verlorenLuecke = _verlorenLuecke + (perioden - 1);
@@ -328,8 +367,8 @@ void ADS1256::isrLesen() {
   // --- 24 Bit lesen (im RDATAC-Modus ohne Befehl und ohne t6) ---
   uint8_t rx[3];
   gpio_put(_pinCS, 0);
-  _spi.transfer(NULLEN, rx, 3);    // Bytes ohne Pause hintereinander
-  delayMicroseconds(T10_US);
+  spiLesen3(_hwSpi, rx);
+  warteUs(T10_US);
   gpio_put(_pinCS, 1);
   const int32_t wert = signExtend24(((uint32_t)rx[0] << 16) | ((uint32_t)rx[1] << 8) | rx[2]);
 
@@ -352,18 +391,25 @@ void ADS1256::isrLesen() {
   if (cb) cb(jetzt, wert);         // z. B. Kraftüberwachung des Antriebs (auch bei vollem Puffer)
 }
 
+// Nur auf Kern 1 aufrufen (der Interrupt gehört dem aufrufenden Kern)
 void ADS1256::enableDrdyInterrupt() {
   if (_irqEnabled) return;
-  attachInterruptParam(digitalPinToInterrupt(_pinDRDY), isrTrampoline, FALLING, this);
-  // Höchste Priorität, damit z. B. der USB-Interrupt das Lesen nicht verzögert
+  isrInstanz = this;
+  if (!isrHandlerDa) {
+    gpio_add_raw_irq_handler(_pinDRDY, isrRoh);
+    isrHandlerDa = true;
+  }
+  // Höchste Priorität, damit z. B. der PWM-Interrupt des Antriebs das Lesen nicht verzögert
   // (wichtig ab ca. 7500 SPS). Gilt für alle GPIO-Interrupts dieses Kerns.
   irq_set_priority(IO_IRQ_BANK0, PICO_HIGHEST_IRQ_PRIORITY);
+  gpio_set_irq_enabled(_pinDRDY, GPIO_IRQ_EDGE_FALL, true);   // löscht dabei alte, gespeicherte Flanken
+  irq_set_enabled(IO_IRQ_BANK0, true);
   _irqEnabled = true;
 }
 
 void ADS1256::disableDrdyInterrupt() {
   if (!_irqEnabled) return;
-  detachInterrupt(digitalPinToInterrupt(_pinDRDY));
+  gpio_set_irq_enabled(_pinDRDY, GPIO_IRQ_EDGE_FALL, false);
   _irqEnabled = false;
 }
 
@@ -387,17 +433,9 @@ int32_t ADS1256::readData(uint32_t *zeitMikros) {
   return signExtend24(((uint32_t)rx[0] << 16) | ((uint32_t)rx[1] << 8) | rx[2]);
 }
 
-// 24-Bit-Zweierkomplement auf 32 Bit erweitern
-int32_t ADS1256::signExtend24(uint32_t wert24) {
-  wert24 &= 0x00FFFFFFUL;
-  if (wert24 & 0x00800000UL) wert24 |= 0xFF000000UL;
-  return (int32_t)wert24;
-}
-
 bool ADS1256::isClipped(int32_t counts) {
   // kleiner Sicherheitsabstand (ca. 0,1 %) zum Vollausschlag
-  const int32_t grenze = FULLSCALE_POS - 8388;
-  return counts >= grenze || counts <= -grenze;
+  return counts >= CLIP_GRENZE || counts <= -CLIP_GRENZE;
 }
 
 // ---------------------------------------------------------------------------

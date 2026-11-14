@@ -83,6 +83,7 @@ bool presseBereit(char *grund, size_t n) {
   else if (auftragLaeuft())                      g = "Auftrag laeuft (Tara, Kalibrierung, Rauschtest)";
   else if (aktiv || antrieb::beschaeftigt())     g = "Antrieb faehrt";
   else if (s.alarm)                              g = "Treiber meldet Alarm";
+  else if (s.sensor)                             g = "Sensorfehler (Messwert uebersteuert/eingefroren)";
   else if (s.position >= mot.kalEnde)            g = "Antrieb steht nicht ueber dem Endpunkt ('mot auf <mm>')";
   if (g && grund) snprintf(grund, n, "%s", g);
   return g == nullptr;
