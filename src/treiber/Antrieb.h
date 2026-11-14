@@ -20,6 +20,12 @@
  * virtuelles Werkzeug (steif) und je Pressung ein virtuelles Werkstück mit zufälliger
  * Spitzenkraft. Der ADC liefert weiter den Takt der Proben.
  *
+ * Sensorfehler (SensorWaechter: Rohwert übersteuert oder eingefroren) stoppt jede Abwärtsfahrt
+ * sofort (Stopp::SENSOR) und verhindert ihren Start; Aufwärtsfahrten (Entlasten) bleiben möglich.
+ *
+ * Interrupt-Routinen und alles, was sie aufrufen, liegen im RAM (__not_in_flash_func): der
+ * Flash-Cache ist mit Kern 0 (WLAN) geteilt, Cache-Fehlgriffe würden die Reaktionszeit streuen.
+ *
  * Kern 0 benutzt nur: sende(), stopp(), status(), ereignisHolen(), aufzeichnungHolen().
  *
  * Positionsangaben in Schritten, positiv = nach unten. Nach einer Kalibrierung ist
@@ -71,13 +77,15 @@ enum class Zustand : uint8_t {
 };
 
 enum class Stopp : uint8_t {
-  KEIN = 0, ZIEL, KONTAKT, KRAFT, ALARM, TASTER, BEFEHL, MESSWERTE, KEIN_KONTAKT
+  KEIN = 0, ZIEL, KONTAKT, KRAFT, ALARM, TASTER, BEFEHL, MESSWERTE, KEIN_KONTAKT,
+  SENSOR            // Rohwert übersteuert oder eingefroren (SensorWaechter): Last unbekannt
 };
 
 enum class BefehlTyp : uint8_t { KEIN = 0, FAHRE, KALIBRIEREN, NULLPUNKT, ENA_EIN, ENA_AUS, PARAM, PRESSEN };
 
 enum class EreignisTyp : uint8_t {
-  KEIN = 0, FAHRT_ENDE, KAL_FERTIG, KAL_FEHLER, START_TASTE, ALARM, PRESSE_FERTIG, PRESSE_FEHLER
+  KEIN = 0, FAHRT_ENDE, KAL_FERTIG, KAL_FEHLER, START_TASTE, ALARM, PRESSE_FERTIG, PRESSE_FEHLER,
+  SENSOR            // Sensorfehler beginnt (a = SensorWaechter::Art) bzw. endet (a = 0)
 };
 
 struct Ereignis {
@@ -87,16 +95,19 @@ struct Ereignis {
   // KAL_FERTIG:    a = Kontakttiefe ab Start, b = Überlauf, c = Kraft (Counts über Tara)
   // PRESSE_FERTIG: grund = ZIEL oder KRAFT (Ende des Pressens), a = Position am Ende des Pressens
   // PRESSE_FEHLER: grund = Abbruchursache, a = Position, b = 1: zur Startposition zurückgefahren
+  // SENSOR:        a = SensorWaechter::Art (0 = wieder in Ordnung), b = letzter Rohwert
 };
 
-// Eine Probe des Pressvorgangs (aus dem ADC-Interrupt)
+// Eine Probe des Pressvorgangs (aus dem ADC-Interrupt). 12 statt 16 Byte: die Phase
+// steckt in den oberen 2 Bit der Position (+-536 Mio. Schritte reichen für jeden Hub).
 enum : uint8_t { PHASE_DRUECKEN = 2, PHASE_HALTEN = 3 };
 struct Probe {
   uint32_t tMikros;
-  int32_t  position;      // Schritte
+  int32_t  position : 30; // Schritte
+  uint32_t phase    : 2;  // PHASE_DRUECKEN / PHASE_HALTEN
   int32_t  last;          // Counts über Tara, Last positiv
-  uint8_t  phase;         // PHASE_DRUECKEN / PHASE_HALTEN
 };
+static_assert(sizeof(Probe) == 12, "Probe muss 12 Byte gross sein");
 
 struct Status {
   Zustand zustand;
@@ -107,6 +118,7 @@ struct Status {
   int32_t position;       // Schritte, + = unten
   int32_t lastCounts;     // aktuelle Last über Tara (Counts, Mittel über 4 Werte)
   Stopp   letzterStopp;
+  uint8_t sensor;         // SensorWaechter::Art (0 = in Ordnung; in der Simulation immer 0)
 };
 
 // ----- Kern 1 -----

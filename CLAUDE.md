@@ -29,10 +29,14 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   ```
   ~/bin/arduino-cli compile --fqbn rp2040:rp2040:rpipicow:flash=2097152_1048576 --warnings all .
   ```
-  Must build without compiler warnings. Reference size: ~561 KB of 1 MB flash, ~225 KB static RAM (~37 KB left for
-  heap/stack — the IDE's generic "low memory" notice above 75 % is expected; do not add more big buffers). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
-- No automated tests. Functional verification is on hardware via the serial monitor (newline line ending; `h` = help,
-  `i` = status) or the web UI at `http://waegezelle.local/`.
+  Must build without compiler warnings. Reference size: ~575 KB of 1 MB flash, ~219 KB static RAM (~43 KB left for
+  heap/stack — the IDE's generic "low memory" notice above 75 % is expected; do not add more big buffers; CI fails
+  above 224 000 bytes; `wd` shows both cores' stack high-water marks). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
+- Host tests: `sh tests/host/run.sh` (g++; on this Windows machine `wsl -e sh tests/host/run.sh`). They cover the
+  Arduino-free headers `pruefsumme.*`, `rahmen.h`, `welford.h`, `treiber/SensorWaechter.h` — keep those free of
+  `<Arduino.h>` and put new pure logic there with a test. `.github/workflows/firmware.yml` runs the tests and the
+  compile check (no warnings, RAM limit). Everything else is verified on hardware via the serial monitor (newline
+  line ending; `h` = help, `i` = status) or the web UI at `http://waegezelle.local/`.
 - PC tool: `python tools/waegezelle_plot.py [--port COM5] [--rate 2000] [--fenster 10]` (pyserial, numpy, pyqtgraph,
   PyQt5). It switches the firmware into binary mode `m 4` and parses `#CFG` lines.
 
@@ -54,6 +58,15 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   `ereignisHolen()`, `beschaeftigt()`. `src/motor.cpp` converts force limits from grams to counts (tare/factor) and
   sends them in `antrieb::Param` with every command. `antrieb::messwertIsr()` is the ADS1256 DRDY callback, so a
   downward move stops within one step on contact/max force — keep that path short and allocation-free.
+- **Interrupt code lives in RAM** (`__not_in_flash_func`): `ADS1256::isrRoh/isrLesen` (raw GPIO handler via
+  `gpio_add_raw_irq_handler`, SPI read via registers — not `attachInterrupt`/`SPI.transfer`), `antrieb::messwertIsr`,
+  `pwmIsr`, `anhalten`. The flash cache is shared with core 0 (WLAN). Anything new called from these paths must be
+  inline or RAM-placed too (check with `arm-none-eabi-objdump` for `bl` into flash veneers); float math is only on
+  the simulation path, 32/64-bit division only after a lost sample.
+- **Sensor fault** (`treiber/SensorWaechter.h`, checked in `messwertIsr()` on the raw counts): clipped (same limit as
+  `ADS1256::CLIP_GRENZE`, `static_assert` in `adc.cpp`) or 64 identical raw values → `Stopp::SENSOR` stops every
+  downward move and `starten()` refuses new ones; upward moves stay allowed. Not checked in simulation. Core 1
+  reports changes as `EreignisTyp::SENSOR` from `loop1` (never call `melde()` from an ISR — one producer context).
 
 ### Press process and sessions
 - **Core 1** (`Antrieb.cpp`, `BefehlTyp::PRESSEN`): states `PR_ANFAHRT` (rapid to `presseAnfahrt`) → `PR_DRUECKEN`
@@ -77,13 +90,14 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   `Param::sim*`, are reported as `simp` in `/presse/status`, and the press page's "Parameter …" dialog remembers them
   in localStorage and re-sends them on `sim an`. Step pulses still
   run, so the whole state machine is exercised without a motor; the ADC still clocks the samples. Saved presses carry
-  `PressKopf::simuliert`.
+  `PressKopf::simuliert`. New `antrieb::Stopp` values go at the end and into `GRUND` in `presse.h` (stored as
+  `PressKopf::endGrund`).
 - **Raw press data for the browser**: `probeVerarbeiten()` also packs every sample into `roh[ROH_N]` (`RohProbe`,
   8 B: t in 4 µs, load int24, position 23 bit + hold bit; 32 KB). `GET /presse/roh` serves it (48-byte header, see
   `presse_web.cpp`); `presse.h` (web page) polls it during a press, stores raw samples + a per-step curve in IndexedDB
   and prefers that curve when `n === PressKopf::proben`. Analysis smooths raw curves to the Pico segment width so
   statistics stay comparable. Format changes must be made in `presse.cpp`, `presse_web.cpp` and the page together.
-- Settings block `PresseEinst` (EEPROM address 128): `anfahrt`, `vpress`, `halt` via `mp`. The workpiece path is
+- Settings block `PresseEinst` (third block of `/einst.bin`): `anfahrt`, `vpress`, `halt` via `mp`. The workpiece path is
   limited mechanically (stop screw on the press head): `anfahrt` is capped to `PRESSWEG_MAX_MM` (10 mm = ~5 mm
   screw path + reserve, default `PRESSWEG_STANDARD_MM` 5 mm, `konfig.h`), older stored values are clamped on load,
   so the recorded press path is at most 10 mm above the tool endpoint.
@@ -106,14 +120,22 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   immediate reboot. Any new code where core 0 intentionally waits on core 1, or where core 1 is paused (flash writes),
   must call `watchdogWarten()`. Nothing on core 0 may block longer than 8 s, nothing in `loop1()` longer than 1 s.
 - Web pages are C++ raw string literals in `src/web/seiten/`. The browser polls `GET /daten?p=&l=` (JSON built with
-  `jsonf` in `src/web/webserver.cpp`) and converts counts → grams/µV itself from `cfg`. No authentication.
+  `jsonf` in `src/web/webserver.cpp`) and converts counts → grams/µV itself from `cfg`. No authentication, but every
+  state-changing route must be POST and start with `if (!webSchreibenErlaubt()) return;` (requires header
+  `X-Waegezelle: 1` — CSRF protection); the page JS sends that header on every POST.
 
-### Persistent settings (`src/einstellungen.*`, EEPROM emulation, 256 bytes)
-- `Einstellungen` at address 0 (`static_assert` 32 bytes, magic `"WLZ1"`), `MotorEinst` at 64 (`static_assert`
-  64 bytes, magic `"MOT1"`), `PresseEinst` at 128 (32 bytes, magic `"PRS1"`), each with CRC-32.
-- Changing either layout: keep the asserted size (use reserve bytes) or bump the version — a mismatch silently falls
-  back to defaults on load. Saved only on `s`.
+### Persistent settings (`src/einstellungen.*`)
+- Stored in LittleFS as `/einst.bin` (128 bytes, the three blocks back to back). Save = write `/einst.neu`, read it
+  back, `LittleFS.rename()` onto `/einst.bin` (atomic). Load checks each block: file, else the old EEPROM emulation
+  (older firmware; also the save target if LittleFS is unavailable), else defaults. Hence `sitzungenStarten()` runs
+  before `einstellungenStarten()` in `setup()`.
+- `Einstellungen` (EEPROM address 0, `static_assert` 32 bytes, magic `"WLZ1"`), `MotorEinst` (64, 64 bytes, `"MOT1"`),
+  `PresseEinst` (128, 32 bytes, `"PRS1"`), each with CRC-32.
+- Changing a layout: keep the asserted size (use reserve bytes) or bump the version — a mismatch silently falls
+  back to defaults on load. Saved only on `s` (refused while the motor runs, like all flash writes).
 
 ### Data formats
-USB binary frame (`m 4`): 8 bytes `A5 5A | seq u16 LE | counts i24 LE | CRC-8 (poly 0x07, init 0) over bytes 2–6`.
-CSV (`m 2`): `seq,t_us,roh`. `src/usb_ausgabe.cpp` and `tools/waegezelle_plot.py` must change together.
+USB binary frame (`m 4`): 8 bytes `A5 5A | seq u16 LE | counts i24 LE | CRC-8 (poly 0x07, init 0) over bytes 2–6`,
+built by `binaerRahmen()` in `src/rahmen.h` (tested in `tests/host`). CSV (`m 2`): `seq,t_us,roh`.
+`src/rahmen.h`/`src/usb_ausgabe.cpp` and `tools/waegezelle_plot.py` must change together.
+`PressKopf` field offsets read by the press page are pinned with `static_assert(offsetof…)` in `src/sitzungen.h`.

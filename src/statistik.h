@@ -5,22 +5,8 @@
 
 #include <Arduino.h>
 #include <math.h>
+#include "welford.h"
 #include "treiber/ADS1256.h"
-
-// Mittelwert und Varianz nach Welford (numerisch stabil)
-struct Welford {
-  uint32_t n;
-  double   mittel;
-  double   m2;
-  void reset() { n = 0; mittel = 0.0; m2 = 0.0; }
-  void add(double x) {
-    n++;
-    double d = x - mittel;
-    mittel += d / (double)n;
-    m2 += d * (x - mittel);
-  }
-  double stdAbw() const { return (n > 1) ? sqrt(m2 / (double)(n - 1)) : 0.0; }
-};
 
 // Statistik über Rohwerte: Welford, Blockmittel (10-SPS-Äquivalent), Lücken
 struct Statistik {

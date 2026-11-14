@@ -3,7 +3,8 @@
  */
 #pragma once
 
-#include <Arduino.h>
+#include <stddef.h>
+#include <stdint.h>   // ohne Arduino-Abhängigkeit: auch in tests/host übersetzbar
 
 uint32_t crc32(const uint8_t *daten, size_t laenge);
 

@@ -22,19 +22,25 @@
  *   zuverlässig verlorene Messwerte an.
  *
  * Regeln:
- *   - Alle SPI-Zugriffe kommen aus EINEM Kern (hier Kern 0). Funktionen mit
+ *   - Alle SPI-Zugriffe kommen aus EINEM Kern (hier Kern 1). Funktionen mit
  *     Registerzugriff (setDataRate, selfCalibrate, read/writeRegister...)
  *     unterbrechen den Dauerbetrieb automatisch und starten ihn danach neu.
  *   - Ringpuffer: genau ein Erzeuger (ISR) und ein Verbraucher (loop) ->
  *     ohne Sperren, nur mit Speicherbarrieren. Funktioniert auch, wenn die
  *     ISR später auf Kern 1 verlegt wird (enableDrdyInterrupt in setup1()).
  *   - setDrdyCallback(): Funktion, die IM Interrupt nach dem Lesen mit Zeitstempel
- *     und Messwert aufgerufen wird (z. B. Kraftüberwachung des Antriebs). Kurz halten!
+ *     und Messwert aufgerufen wird (z. B. Kraftüberwachung des Antriebs). Kurz halten
+ *     und mit __not_in_flash_func in den RAM legen!
+ *   - Der DRDY-Interrupt ist ein eigener GPIO-Handler (gpio_add_raw_irq_handler) und liegt
+ *     samt SPI-Lesen im RAM: kein Umweg über attachInterrupt() und keine Flash-Zugriffe,
+ *     deren Dauer vom mit Kern 0 geteilten Flash-Cache abhinge. Es gibt höchstens EIN
+ *     ADS1256-Objekt mit Dauerbetrieb.
  */
 #pragma once
 
 #include <Arduino.h>
 #include <SPI.h>
+#include <hardware/spi.h>
 
 class ADS1256 {
 public:
@@ -74,6 +80,7 @@ public:
   static const uint8_t EXPECTED_ID = 3;   // Chip-ID des ADS1256
   static const int32_t FULLSCALE_POS = 0x7FFFFF;
   static const int32_t FULLSCALE_NEG = -0x800000;
+  static const int32_t CLIP_GRENZE   = FULLSCALE_POS - 8388;   // ca. 0,1 % unter Vollausschlag
 
   // SCLK: max. fCLKIN/4 = 1,92 MHz. Der RP2040 rundet immer nach unten.
   static const uint32_t SPI_TAKT_STANDARD = 1900000;
@@ -163,7 +170,12 @@ public:
   double   countsToMicrovolts(double counts) const { return counts * microvoltsPerCount(); }
   double   fullScaleMicrovolts() const;              // +Vollausschlag in µV
 
-  static int32_t signExtend24(uint32_t wert24);
+  // 24-Bit-Zweierkomplement auf 32 Bit erweitern (inline: wird im Interrupt benutzt)
+  static inline int32_t signExtend24(uint32_t wert24) {
+    wert24 &= 0x00FFFFFFUL;
+    if (wert24 & 0x00800000UL) wert24 |= 0xFF000000UL;
+    return (int32_t)wert24;
+  }
   static bool    isClipped(int32_t counts);         // ADC am Anschlag?
   static bool    codeFromRate(float sps, uint8_t &code);
   static float   rateFromCode(uint8_t code);        // 0, wenn Code ungültig
@@ -196,7 +208,7 @@ private:
   void enableDrdyInterrupt();
   void disableDrdyInterrupt();
   void neuePeriode();
-  static void isrTrampoline(void *param);
+  static void isrRoh();             // GPIO-Interrupt (Kern 1), ruft isrLesen()
   void isrLesen();
 
   // Rohzugriffe ohne Pause-Schutz (nur intern)
@@ -205,6 +217,7 @@ private:
   void writeRegistersRoh(uint8_t start, const uint8_t *daten, uint8_t anzahl);
 
   SPIClass   &_spi;
+  spi_inst_t *_hwSpi = spi0;        // dieselbe Schnittstelle für das Lesen im Interrupt (Register)
   SPISettings _spiSettings;
   uint32_t    _spiTakt;
   uint8_t     _pinCS;

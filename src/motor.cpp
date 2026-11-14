@@ -7,6 +7,7 @@
 #include "adc.h"
 #include "auftraege.h"
 #include "presse.h"
+#include "treiber/SensorWaechter.h"
 
 // Endpunkt in diesem Betrieb kalibriert? (Position ist nach einem Neustart unbekannt)
 static bool endpunktAktuell = false;
@@ -164,6 +165,13 @@ static bool antriebPruefen() {
     meld.println(F("# Treiber meldet Alarm (ALM) - erst Ursache beheben."));
     return false;
   }
+  // Einmal je Einschalten erinnern: ohne ENA hängt der Not-Halt allein an der Treiberversorgung
+  static bool enaHinweis = false;
+  if (mot.enaModus == 0 && !simulation && !enaHinweis) {
+    enaHinweis = true;
+    meld.println(F("# Hinweis: ENA nicht angeschlossen ('mp ena'). Der STOPP-Taster ist kein Not-Aus - ein"));
+    meld.println(F("#   fest verdrahteter Not-Aus muss die Treiberversorgung bzw. ENA trennen (README, Antrieb)."));
+  }
   return true;
 }
 
@@ -228,6 +236,16 @@ void antriebEreignisse() {
         presseEreignis(e);
         break;
 
+      case antrieb::EreignisTyp::SENSOR:
+        if (e.a == SensorWaechter::OK) {
+          meld.println(F("# Sensor wieder plausibel - Abwaertsfahrten wieder moeglich."));
+        } else {
+          meld.printf("# !!! SENSORFEHLER: Messwert %s (Rohwert %ld) - Abwaertsfahrten gestoppt und gesperrt.\n",
+                      e.a == SensorWaechter::UEBERSTEUERT ? "am Anschlag" : "eingefroren", (long)e.b);
+          meld.println(F("#   Waegezelle, Verdrahtung und Brueckenspeisung pruefen. Entlasten mit 'mot auf <mm>' bleibt moeglich."));
+        }
+        break;
+
       case antrieb::EreignisTyp::ALARM:
         meld.println(F("# !!! Alarm vom Schrittmotortreiber (ALM) - Fahrt gestoppt. Ursache pruefen (Schleppfehler, Ueberstrom)."));
         break;
@@ -252,6 +270,10 @@ static void motorStatus() {
   }
   meld.printf("# Last:           %.2f kg (Mittel ueber 4 Werte)\n", s.lastCounts / fa / 1000.0);
   meld.printf("# Letzter Stopp:  %s\n", antrieb::stoppText(s.letzterStopp));
+  if (s.sensor != SensorWaechter::OK) {
+    meld.printf("# SENSORFEHLER:   Messwert %s - keine Abwaertsfahrt moeglich\n",
+                s.sensor == SensorWaechter::UEBERSTEUERT ? "am Anschlag" : "eingefroren");
+  }
   if (mot.enaModus) meld.printf("# Motorstrom:     %s\n", s.enaEin ? "ein" : "aus ('mot ein')");
   if (mot.kalGueltig) {
     meld.printf("# Kalibrierung:   Kontakt %.3f mm unter Start, Endpunkt +%ld Schritte bei %.2f kg (%s)\n",

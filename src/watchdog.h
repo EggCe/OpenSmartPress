@@ -11,6 +11,10 @@
  *
  * Wartet Kern 0 absichtlich auf Kern 1 (ADC-Auftrag, Flash schreiben), dort
  * watchdogWarten() aufrufen: füttert ohne Herzschlagprüfung.
+ *
+ * Stapel: stapelMarkieren() füllt zu Beginn von setup() bzw. setup1() den freien Teil des
+ * Stapels mit einem Muster; watchdogInfo() zeigt, wie tief jeder Kern höchstens gegangen
+ * ist (Kern 0: Scratch X+Y, ca. 8 KB; Kern 1: eigener 8-KB-Stapel, core1_separate_stack).
  */
 #pragma once
 
@@ -28,3 +32,6 @@ void watchdogTest(uint8_t kern);     // Befehl 'wd test 0|1': Kern absichtlich a
 
 // ----- Kern 1 -----
 void watchdogHerzschlag();           // aus loop1()
+
+// ----- beide Kerne -----
+void stapelMarkieren();              // erste Zeile von setup() bzw. setup1()

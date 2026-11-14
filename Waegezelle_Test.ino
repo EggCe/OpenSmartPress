@@ -64,6 +64,7 @@ bool core1_separate_stack = true;
 // Kern 0
 // ===========================================================================
 void setup() {
+  stapelMarkieren();               // zuerst: freien Stapel markieren (Hochwassermarke, 'wd')
   Serial.begin(115200);            // USB-CDC: Baudrate ohne Bedeutung
   uint32_t start = millis();
   while (!Serial && millis() - start < 3000) { }   // kurz auf den seriellen Monitor warten
@@ -77,8 +78,8 @@ void setup() {
   meld.println(F("#  Waegezellen-Test: ADS1256 + Raspberry Pi Pico W"));
   meld.println(F("# ================================================="));
 
-  einstellungenStarten();          // Einstellungen und Antrieb-Parameter aus dem Flash
-  sitzungenStarten();              // Dateisystem mit den Sitzungen (LittleFS)
+  sitzungenStarten();              // Dateisystem (LittleFS) mit den Sitzungen
+  einstellungenStarten();          // Einstellungen und Antrieb-Parameter (LittleFS, sonst EEPROM)
 
   // Jeder Messwert geht im Interrupt auch an die Kraftüberwachung des Antriebs
   adcStarten(antrieb::messwertIsr);
@@ -110,6 +111,7 @@ void loop() {
 // Kern 1
 // ===========================================================================
 void setup1() {
+  stapelMarkieren();               // eigener 8-KB-Stapel von Kern 1
   // Antrieb auf Kern 1 (PWM-Interrupt hier); ohne 'mp spmm' bewegt er sich nicht.
   // Den ADS1256 initialisiert Kern 0 per Auftrag, sobald er bereit ist.
   antrieb::init(PIN_MOT_PUL, PIN_MOT_DIR, PIN_MOT_ENA, PIN_MOT_ALM, PIN_TASTE_START, PIN_TASTE_STOPP);

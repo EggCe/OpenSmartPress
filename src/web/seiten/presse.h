@@ -71,6 +71,14 @@ body.eng .fuss{justify-content:center}
 .plotfl{position:relative;flex:1 1 0;min-height:0;margin-top:8px}
 #plot{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
 .legende{font-size:11.5px;margin-top:6px}
+.kurz{position:absolute;top:10px;right:22px;min-width:210px;padding:8px 12px;border:1px solid var(--rand2);border-radius:12px;
+background:var(--menue);backdrop-filter:blur(6px);font-size:12.5px;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none}
+.kurz .kk{display:flex;justify-content:space-between;gap:10px;font-weight:700;color:var(--akzent)}
+.kurz .kk span{font-weight:500;color:var(--leise)}
+.kurz dl{display:grid;grid-template-columns:auto auto;gap:1px 14px;margin:5px 0 0}
+.kurz dt{color:var(--leise)}
+.kurz dd{margin:0;text-align:right}
+.kurz.zu dl{display:none}
 @media (max-width:900px){.buehne{grid-template-columns:1fr;height:auto;min-height:0}.plotfl{flex:none;height:62vh;min-height:300px}}
 .live{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:10px 12px;margin-bottom:6px;
 border:1px solid var(--rand2);border-radius:14px;background:var(--bg2)}
@@ -201,7 +209,8 @@ dialog input[type=number]{width:110px}
       <label><input type="checkbox" id="abbr"> Abbrüche zeigen</label>
       <label><input type="checkbox" id="nurKontakt" checked> ab Kontakt zoomen</label>
     </div>
-    <div class="plotfl" id="plotfl"><canvas id="plot"></canvas></div>
+    <div class="plotfl" id="plotfl"><canvas id="plot"></canvas>
+      <div class="kurz" id="kurz" hidden title="Klick: ein-/ausklappen"></div></div>
     <div class="sub legende"><span class="fl" style="background:var(--akzent)"></span>Pressungen ·
       <span class="fl" style="background:var(--hell)"></span>Auswahl mit Plateau-Gerade (Fenster schattiert), ● Fügekraft, ▲ Einführspitze,
       ✕ größter Kraftabfall · <span class="fl" style="background:rgb(var(--wr))"></span>Rissverdacht / laufende Pressung ·
@@ -304,7 +313,7 @@ dialog input[type=number]{width:110px}
 "use strict";
 const $=id=>document.getElementById(id);
 const STUFE=0.02;
-const GRUND=["-","Endpunkt erreicht","Kontakt","Maximalkraft","Alarm vom Treiber","STOPP-Taster","Stopp-Befehl","keine Messwerte","kein Kontakt"];
+const GRUND=["-","Endpunkt erreicht","Kontakt","Maximalkraft","Alarm vom Treiber","STOPP-Taster","Stopp-Befehl","keine Messwerte","kein Kontakt","Sensorfehler"];
 const STATUS=["OK","Abbruch","Kraft im Eilgang"];
 let S=null,online=false,ln=null,logRest="";
 let sitId=-1,sitN=0,ladeNr=0,holt=false,sitName="";
@@ -352,14 +361,14 @@ $("awStandard").onclick=()=>{AW=Object.assign({},AW_STANDARD);awZeigen();awUeber
 awZeigen();
 
 // Uhr des Pico stellen (hat keine eigene)
-fetch("/zeit",{method:"POST",body:new URLSearchParams({t:Math.floor(Date.now()/1000),tz:-new Date().getTimezoneOffset()})}).catch(()=>{});
+fetch("/zeit",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({t:Math.floor(Date.now()/1000),tz:-new Date().getTimezoneOffset()})}).catch(()=>{});
 
 async function befehl(c){
-  try{await fetch("/cmd",{method:"POST",body:new URLSearchParams({c})});}
+  try{await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});}
   catch(e){logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
 }
 async function aktion(o){
-  try{const r=await fetch("/sitzung",{method:"POST",body:new URLSearchParams(o)});const j=await r.json();listeLaden();return j.ok===1;}
+  try{const r=await fetch("/sitzung",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams(o)});const j=await r.json();listeLaden();return j.ok===1;}
   catch(e){return false;}
 }
 document.querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>befehl(b.dataset.c));
@@ -776,7 +785,7 @@ function waehlen(nr){auswahl=nr;details();tabelle();neuZeichnen=true;}
 function details(){
   const p=pressen.get(auswahl);
   if(!p){$("detTitel").textContent="Pressung";$("detSub").textContent="";
-    $("details").innerHTML="<dt>Noch keine Pressung ausgewählt.</dt><dd></dd>";return;}
+    $("details").innerHTML="<dt>Noch keine Pressung ausgewählt.</dt><dd></dd>";kurzwerte();return;}
   const k=p.k,a=p.a,{r}=kennStat(),liste=kennListe();
   $("detTitel").textContent="Pressung "+k.nr;
   $("detSub").innerHTML=zeitText(k.zeit)+' · <span class="'+(k.status?'warn':'ok')+'">'+(STATUS[k.status]||"?")+'</span>'+
@@ -809,7 +818,22 @@ function details(){
     '<dt>Einstellungen</dt><dd>'+fmt(k.vPress,2)+' mm/s, Haltezeit '+k.haltMs+' ms</dd>';
   $("details").innerHTML=h;
   if($("rohCsv"))$("rohCsv").onclick=()=>rohCsv(p);
+  kurzwerte();
 }
+// Grundwerte der ausgewählten Kurve oben rechts im Diagramm
+function kurzwerte(){
+  const el=$("kurz"),p=pressen.get(auswahl);
+  if(!p){el.hidden=true;return;}
+  const k=p.k,a=p.a,liste=kennListe();
+  const z=id=>{const m=liste.find(x=>x[0]===id);return m?'<dt>'+m[1].replace(/ \(.*\)$| gesamt$/,"")+'</dt><dd><b>'+fmt(kwert(p,m),kstellen(m))+'</b> '+keinheit(m[2])+'</dd>':'';};
+  const st=k.status?'<span class="warn">'+(STATUS[k.status]||"?")+'</span>':a.riss?'<span class="warn">⚠ Rissverdacht</span>':'<span class="ok">OK</span>';
+  el.innerHTML='<div class="kk">Pressung '+k.nr+'<span>'+st+(k.sim?' · Sim.':'')+'</span></div>'+
+    '<dl>'+z("fuege")+z("spitze")+'<dt>Höchstkraft</dt><dd><b>'+fmt(kr(k.fmaxN),E.d)+'</b> '+E.n+'</dd>'+
+    z("fend")+z("tiefe")+z("arbeit")+z("abfall")+'</dl>';
+  el.hidden=false;
+}
+$("kurz").classList.toggle("zu",!!lsLesen("wz_kurzZu",false));
+$("kurz").onclick=()=>{const zu=!$("kurz").classList.contains("zu");$("kurz").classList.toggle("zu",zu);lsSchreiben("wz_kurzZu",zu);};
 
 // ---------- Diagramm Kraft über Weg ----------
 const cv=$("plot"),ctx=cv.getContext("2d");

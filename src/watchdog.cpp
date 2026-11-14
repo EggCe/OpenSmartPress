@@ -11,6 +11,17 @@ static constexpr uint32_t MARKE_KERN1 = 0x4B31484EUL;   // "NH1K": Neustart, wei
 static volatile uint32_t herzschlag1 = 0;      // von Kern 1 hochgezählt
 static volatile bool     kern1Aufhaengen = false;   // nur für 'wd test 1'
 
+// Stapel (nullptr = nicht markiert)
+static constexpr uint32_t STAPEL_MUSTER = 0x5354504BUL;   // "KPTS"
+static uint32_t *stapelUnten[2] = {nullptr, nullptr};
+static uint32_t *stapelOben[2]  = {nullptr, nullptr};
+
+extern "C" {
+  extern uint32_t __scratch_x_end__[];           // Linker: Ende der Daten in Scratch X
+  extern uint32_t __StackTop[];                  // Linker: oberes Ende des Stapels von Kern 0
+  extern uint32_t *core1_separate_stack_address; // arduino-pico: 8-KB-Stapel von Kern 1
+}
+
 static bool        aktiv = false;
 static uint32_t    letzterHerzschlag = 0;
 static uint32_t    letzteAenderungMs = 0;
@@ -85,11 +96,53 @@ void watchdogWarten() {
   watchdog_update();
 }
 
+// ===========================================================================
+// Stapel-Hochwassermarke (beide Kerne)
+// ===========================================================================
+void stapelMarkieren() {
+  const uint32_t kern = get_core_num();
+  uint32_t *unten, *oben;
+  if (kern == 0) {
+    // Kern 0 beginnt oben in Scratch Y und darf bis an die Daten in Scratch X wachsen
+    // (Kern 1 hat einen eigenen Stapel, Scratch X ist sonst frei)
+    unten = __scratch_x_end__;
+    oben  = __StackTop;
+  } else {
+    if (!core1_separate_stack_address) return;   // ohne eigenen Stapel nicht messbar
+    unten = core1_separate_stack_address;
+    oben  = core1_separate_stack_address + 0x2000 / sizeof(uint32_t);
+  }
+  uint32_t sp;
+  asm volatile("mov %0, sp" : "=r"(sp));
+  uint32_t *bis = (uint32_t *)(sp - 256);        // Reserve für diesen Aufruf und Interrupts
+  if (bis <= unten || bis > oben) return;
+  for (uint32_t *p = unten; p < bis; p++) *p = STAPEL_MUSTER;
+  stapelUnten[kern] = unten;
+  stapelOben[kern]  = oben;
+}
+
+// Höchste Belegung in Byte (0 = nicht markiert)
+static uint32_t stapelMaximum(uint8_t kern, uint32_t &groesse) {
+  const uint32_t *unten = stapelUnten[kern], *oben = stapelOben[kern];
+  groesse = 0;
+  if (!unten) return 0;
+  groesse = (uint32_t)(oben - unten) * sizeof(uint32_t);
+  const uint32_t *p = unten;
+  while (p < oben && *p == STAPEL_MUSTER) p++;
+  return (uint32_t)(oben - p) * sizeof(uint32_t);
+}
+
 void watchdogInfo() {
   meld.printf("# Watchdog:       %s, Kern 0 max. %lu ms, Kern 1 max. %lu ms ohne Herzschlag\n",
               aktiv ? "aktiv" : "AUS", (unsigned long)WATCHDOG_TIMEOUT_MS, (unsigned long)KERN1_TIMEOUT_MS);
   meld.printf("# Kern 1:         letzter Herzschlag vor %lu ms\n", (unsigned long)(millis() - letzteAenderungMs));
   meld.printf("# Letzter Neustart: %s\n", neustartGrund);
+  for (uint8_t k = 0; k < 2; k++) {
+    uint32_t groesse = 0;
+    const uint32_t max = stapelMaximum(k, groesse);
+    if (groesse) meld.printf("# Stapel Kern %u:  max. %lu von %lu Byte belegt%s\n", k, (unsigned long)max,
+                             (unsigned long)groesse, max * 4 > groesse * 3 ? "  !!! knapp" : "");
+  }
 }
 
 void watchdogTest(uint8_t kern) {

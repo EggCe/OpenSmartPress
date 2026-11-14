@@ -1,0 +1,65 @@
+# Prüft jeden Push und Pull Request:
+#  - Tests der hardwareunabhängigen Logik auf dem PC (tests/host)
+#  - Übersetzen der Firmware wie in CLAUDE.md beschrieben: ohne Compiler-Warnungen und mit
+#    höchstens RAM_MAX Byte statischem RAM (Reserve für Heap und Stapel, siehe CLAUDE.md)
+name: Firmware
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests auf dem PC
+        run: sh tests/host/run.sh
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FQBN: rp2040:rp2040:rpipicow:flash=2097152_1048576
+      CORE_VERSION: 6.3.2
+      RAM_MAX: 224000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: Waegezelle_Test          # Arduino verlangt: Ordnername = Sketchname
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Core "Raspberry Pi Pico/RP2040" installieren
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          arduino-cli core update-index
+          arduino-cli core install rp2040:rp2040@${CORE_VERSION}
+
+      - name: WLAN-Zugangsdaten (Platzhalter aus der Vorlage)
+        run: cp Waegezelle_Test/wlan_zugang.beispiel.h Waegezelle_Test/wlan_zugang.h
+
+      - name: Uebersetzen
+        working-directory: Waegezelle_Test
+        run: |
+          set -o pipefail
+          arduino-cli compile --fqbn "$FQBN" --warnings all . 2>&1 | tee build.log
+
+      - name: Keine Warnungen
+        working-directory: Waegezelle_Test
+        run: |
+          if grep -n "warning:" build.log; then
+            echo "::error::Die Firmware muss ohne Compiler-Warnungen uebersetzen."
+            exit 1
+          fi
+
+      - name: Statischer RAM unter RAM_MAX
+        working-directory: Waegezelle_Test
+        run: |
+          ram=$(grep -oE 'Global variables use [0-9]+ bytes' build.log | grep -oE '[0-9]+')
+          echo "Statischer RAM: ${ram} Byte (Grenze ${RAM_MAX})"
+          if [ -z "$ram" ] || [ "$ram" -gt "$RAM_MAX" ]; then
+            echo "::error::Statischer RAM ${ram} Byte ueber ${RAM_MAX} - keine grossen Puffer mehr anlegen (CLAUDE.md)."
+            exit 1
+          fi

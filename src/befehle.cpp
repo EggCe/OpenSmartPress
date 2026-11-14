@@ -57,7 +57,7 @@ static void zeigeHilfe() {
   meld.println(F("#      mp [name wert]     Antrieb- und Press-Parameter anzeigen bzw. setzen (anfahrt, vpress, halt ...)"));
   meld.println(F("#      wlan [an|aus]      WLAN-Status bzw. ein-/ausschalten"));
   meld.println(F("#                         ('wlan aus' fuer Rauschmessungen ohne Funk; danach nur per USB wieder an)"));
-  meld.println(F("#      wd                 Watchdog-Status und Grund des letzten Neustarts"));
+  meld.println(F("#      wd                 Watchdog-Status, Grund des letzten Neustarts, Stapelbelegung"));
   meld.println(F("#      wd test 0|1        Kern 0 bzw. 1 absichtlich aufhaengen (Watchdog pruefen, loest Neustart aus)"));
   meld.println(F("# Ablauf: Zelle entlasten -> 't' -> Gewicht auflegen -> 'k 5000' -> 's'"));
   meld.println(F("# ---------------------------------------------------------------"));

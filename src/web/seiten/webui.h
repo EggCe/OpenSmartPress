@@ -187,7 +187,7 @@ cvPlot.addEventListener("pointercancel",()=>{zieh=null;});
 cvPlot.addEventListener("dblclick",()=>skalaSetzen("auto"));
 function senden(){const t=$("befehl").value.trim();if(t){befehl(t);$("befehl").value="";}}
 async function befehl(c){
-  try{await fetch("/cmd",{method:"POST",body:new URLSearchParams({c})});}
+  try{await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});}
   catch(e){logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
 }
 

@@ -7,6 +7,12 @@
  *                   Parameter p/l = ab Punkt/Log-Position
  *   POST /cmd       Parameter c = Befehl (wie im seriellen Monitor)
  *   Pressseite und Sitzungen: siehe presse_web.cpp
+ *
+ * Schreibende Anfragen (POST /cmd, /sitzung, /zeit) brauchen die Kopfzeile
+ * "X-Waegezelle: 1" (webSchreibenErlaubt). Eine fremde Webseite kann sie im Browser
+ * nicht ohne CORS-Vorabfrage setzen, die der Pico nie beantwortet - so löst kein
+ * Link und kein Formular einer anderen Seite eine Fahrt aus (CSRF). Das ist KEIN
+ * Passwortschutz: jedes Programm im selben Netz kann die Kopfzeile senden.
  */
 #pragma once
 
@@ -23,3 +29,4 @@ void jsonZeichen(char c);                                // ein Zeichen in einem
 void jsonFlush();
 void jsonEnde();
 void presseWebRouten();                                  // presse_web.cpp
+bool webSchreibenErlaubt();                              // false: 403 schon gesendet

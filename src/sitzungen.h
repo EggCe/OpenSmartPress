@@ -54,6 +54,23 @@ struct PressKopf {
   uint32_t haltMs;
 };
 static_assert(sizeof(PressKopf) == 128, "PressKopf muss 128 Byte gross sein");
+// Diese Lagen liest die Pressseite per DataView (kopf() in web/seiten/presse.h)
+static_assert(offsetof(PressKopf, punkte) == 6 && offsetof(PressKopf, nr) == 8 &&
+              offsetof(PressKopf, zeit) == 12 && offsetof(PressKopf, endGrund) == 16 &&
+              offsetof(PressKopf, status) == 17 && offsetof(PressKopf, kontakt) == 18 &&
+              offsetof(PressKopf, simuliert) == 19 && offsetof(PressKopf, startMm) == 20 &&
+              offsetof(PressKopf, punktMm) == 24 && offsetof(PressKopf, kontaktMm) == 28 &&
+              offsetof(PressKopf, endMm) == 32 && offsetof(PressKopf, tiefeMm) == 36 &&
+              offsetof(PressKopf, fmaxN) == 40 && offsetof(PressKopf, fmaxMm) == 44 &&
+              offsetof(PressKopf, fendN) == 48 && offsetof(PressKopf, fhaltN) == 52 &&
+              offsetof(PressKopf, fmittelN) == 56 && offsetof(PressKopf, fsigmaN) == 60 &&
+              offsetof(PressKopf, fminN) == 64 && offsetof(PressKopf, fspanneN) == 68 &&
+              offsetof(PressKopf, arbeitJ) == 72 && offsetof(PressKopf, presszeitS) == 76 &&
+              offsetof(PressKopf, zykluszeitS) == 80 && offsetof(PressKopf, proben) == 84 &&
+              offsetof(PressKopf, verloren) == 88 && offsetof(PressKopf, sps) == 104 &&
+              offsetof(PressKopf, vPressMmS) == 116 && offsetof(PressKopf, anfahrtMm) == 120 &&
+              offsetof(PressKopf, haltMs) == 124,
+              "PressKopf-Lagen passen nicht mehr zu kopf() in web/seiten/presse.h");
 
 struct PressPunkt {
   int16_t  kraft;           // in KRAFT_N_PRO_STUFE, PUNKT_LEER = kein Wert
@@ -72,6 +89,7 @@ struct SitzungMeta {
 
 // ----- Start, Uhr -----
 bool     sitzungenStarten();                      // LittleFS einbinden, aktive Sitzung laden
+bool     dateisystemOk();                         // LittleFS eingebunden
 void     zeitSetzen(uint32_t unix, int32_t tzMinuten);   // vom Browser
 uint32_t zeitJetzt();                             // Unix-Zeit, 0 = unbekannt
 int32_t  zeitZoneMinuten();

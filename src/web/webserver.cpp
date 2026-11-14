@@ -149,7 +149,15 @@ static void webDaten() {
   server.sendContent("");                                  // Ende der chunked-Antwort
 }
 
+// Schreibende Anfrage nur per POST mit Kopfzeile "X-Waegezelle: 1" (siehe webserver.h)
+bool webSchreibenErlaubt() {
+  if (server.method() == HTTP_POST && server.header("X-Waegezelle") == "1") return true;
+  server.send(403, "text/plain", "Nur POST mit Kopfzeile X-Waegezelle: 1");
+  return false;
+}
+
 static void webBefehl() {
+  if (!webSchreibenErlaubt()) return;
   if (!server.hasArg("c")) {
     server.send(400, "text/plain", "Parameter c fehlt");
     return;
@@ -167,9 +175,10 @@ void webserverStarten() {
   server.on("/", HTTP_GET, webSeite);
   server.on("/stil.css", HTTP_GET, webStil);
   server.on("/daten", HTTP_GET, webDaten);
-  server.on("/cmd", webBefehl);    // GET oder POST
+  server.on("/cmd", HTTP_POST, webBefehl);
   presseWebRouten();               // Pressseite, Sitzungen, Export (presse_web.cpp)
   server.onNotFound([]() { server.send(404, "text/plain", "Nicht gefunden"); });
+  server.collectHeaders("X-Waegezelle");   // sonst speichert der Server die Kopfzeile nicht
   server.enableDelay(false);       // handleClient() soll die Messwertverarbeitung nicht bremsen
   server.begin();
 }
