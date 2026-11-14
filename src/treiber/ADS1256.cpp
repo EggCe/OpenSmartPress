@@ -208,6 +208,10 @@ void ADS1256::neuePeriode() {
   if (sps <= 0.0f) sps = 100.0f;
   _periodeNs = (uint32_t)(1.0e9f / sps + 0.5f);
   _lueckeUs  = (uint32_t)((float)_periodeNs * 1.5f / 1000.0f);
+  // Verspätung, ab der das Lesen in die nächste Aktualisierung des Datenregisters fallen kann
+  const uint32_t periodeUs = _periodeNs / 1000u;
+  const uint32_t reserve = (periodeUs / 4u > 20u) ? periodeUs / 4u : 20u;
+  _spaetUs = periodeUs + reserve;
 }
 
 bool ADS1256::startContinuous() {
@@ -287,10 +291,12 @@ void ADS1256::isrLesen() {
 
   // --- Laufende Nummer, Lücken aus dem Zeitabstand erkennen ---
   uint32_t seq = _seq;
+  bool spaet = false;
   if (_zeitbasisNeu) {
     _zeitbasisNeu = false;
   } else {
     const uint32_t dt = jetzt - _letzteFlanke;
+    spaet = dt > _spaetUs;
     if (dt > _lueckeUs) {
       // Anzahl Perioden seit der letzten Flanke (gerundet), davon ist eine diese
       uint32_t perioden = (uint32_t)(((uint64_t)dt * 1000u + _periodeNs / 2u) / _periodeNs);
@@ -302,6 +308,15 @@ void ADS1256::isrLesen() {
   }
   _letzteFlanke = jetzt;
   _seq = seq + 1;
+
+  // --- Interrupt kam deutlich zu spät (z. B. Kern 1 war beim Flash-Schreiben angehalten):
+  //     Der Zeitpunkt im Wandlertakt ist unbekannt, das Lesen könnte in die Aktualisierung
+  //     des Datenregisters fallen und einen zerrissenen Wert liefern -> nicht lesen, als
+  //     verloren zählen (die Lücke in seq zeigt ihn an) ---
+  if (spaet) {
+    _verlorenLuecke = _verlorenLuecke + 1;
+    return;
+  }
 
   // --- Ist DRDY schon wieder HIGH, steht die nächste Aktualisierung bevor:
   //     Lesen könnte einen zerrissenen Wert liefern -> verwerfen ---

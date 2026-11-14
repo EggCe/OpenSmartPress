@@ -227,6 +227,7 @@ private:
   volatile bool     _zeitbasisNeu = true;
   uint32_t          _periodeNs = 10000000;   // Wandlungsperiode in ns
   uint32_t          _lueckeUs  = 15000;      // ab hier gilt ein Abstand als Lücke
+  uint32_t          _spaetUs   = 12500;      // ab hier kam der Interrupt zu spät: Wert nicht lesen
   volatile uint32_t _verlorenIsr = 0;
   volatile uint32_t _verlorenVoll = 0;
   volatile uint32_t _verlorenLuecke = 0;

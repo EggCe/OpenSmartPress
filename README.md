@@ -181,6 +181,13 @@ Endkraft, Kontakt, Presstiefe, mittlere Kraft, Standardabweichung, Spannweite, P
 Abweichung zum Mittel der Sitzung. Die Sitzungsstatistik fasst Mittel, σ und Spannweite aller Kennwerte zusammen.
 Sitzungen lassen sich anlegen, öffnen, umbenennen, löschen und als **CSV** (Excel: Semikolon, Dezimalkomma) oder
 **JSON** exportieren. Abgebrochene Pressungen werden markiert gespeichert und zählen nicht zur Statistik.
+**Auswertung** (im Browser aus den gespeicherten Kurven, Einstellungen auf der Seite):
+Kurven wahlweise **ab Kontakt** ausgerichtet; **Fügekraft** ohne den Anschlag am Endpunkt; **Einführspitze**;
+**Plateau-Gerade** im einstellbaren Fenster (Steigung, Achsenabschnitt, **Laufruhe** = Streuung um die Gerade, Arbeit);
+**größter Kraftabfall** mit Markierung **Rissverdacht** (Standard ab 5 % in 0,05 mm); **Kraft in Wegfenstern** ab
+Kontakt; **Trenddiagramm** eines Kennwerts über die Pressungen mit ±3σ. „Auswertung als CSV“ exportiert alles.
+In der Simulation haben die Kurven eine Einführspitze, und etwa jede zwölfte Pressung bekommt einen Riss.
+
 Die **Krafteinheit** ist über dem Diagramm wählbar (**N, kg, lbs**) und gilt für Diagramm, Kennwerte, Statistik und
 den CSV-Export; der Browser merkt sich die Wahl. Gespeichert wird immer in N, der JSON-Export bleibt in N.
 

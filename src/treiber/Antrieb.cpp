@@ -98,6 +98,7 @@ static int32_t     simOben = 0;                          // Oberkante des Werkst
 static float       simInvWeg = 1.0f;                     // 1 / (simWerkzeug - simOben)
 static float       simFspitze = 0.0f;                    // Spitzenkraft dieser Pressung (g)
 static volatile bool simWerkstueck = false;
+static float       simRissX = 2.0f;                      // Lage eines simulierten Risses (0..1, > 1 = kein Riss)
 static uint32_t    simZufall = 1;
 
 // Ereignisse Kern 1 -> Kern 0 (ein Erzeuger, ein Verbraucher)
@@ -164,7 +165,14 @@ static int32_t simLast() {
     if (x > 1.0f) x = 1.0f;
     const float r = 1.0f - x;
     float s = 0.35f * x + 0.65f * (1.0f - r * r);
-    s += 0.03f * r * (float)((p & 63) - 32) * (1.0f / 32.0f);   // Reibungs-Welligkeit, am Ende 0
+    // Einführspitze an der Fase (bei 8 % des Wegs, glatter Buckel)
+    const float b = (x - 0.08f) * (1.0f / 0.06f);
+    if (b > -1.0f && b < 1.0f) { const float q = 1.0f - b * b; s += 0.12f * q * q; }
+    // kleine, glatte Reibungs-Welligkeit (Dreieck, Periode 64 Schritte), am Ende 0
+    const float dreieck = 1.0f - (float)abs((int)(p & 63) - 32) * (1.0f / 16.0f);
+    s += 0.004f * r * dreieck;
+    // simulierter Riss: Kraft fällt schlagartig um 15 % und erholt sich danach
+    if (x > simRissX) s *= 1.0f - 0.15f / (1.0f + 80.0f * (x - simRissX));
     g += simFspitze * s;
   }
   if (p > simWerkzeug) g += SIM_WERKZEUG_G_PRO_SCHRITT * (float)(p - simWerkzeug);
@@ -178,7 +186,10 @@ static void simWerkstueckEinlegen() {
   float fmax = P.simFmaxG - 500.0f;                      // Platz für Werkzeugkontakt (ca. 16 Schritte) und Rauschen
   if (fmax < P.simFminG) fmax = P.simFminG;
   const float fspitze = P.simFminG + (fmax - P.simFminG) * simZufallF();
+  // etwa jede zwölfte Pressung bekommt einen Riss zwischen 30 und 80 % des Wegs
+  const float riss = (simZufallF() < 1.0f / 12.0f) ? 0.3f + 0.5f * simZufallF() : 2.0f;
   const uint32_t irq = save_and_disable_interrupts();
+  simRissX = riss;
   simOben = simWerkzeug - (int32_t)lroundf(hoehe < 1.0f ? 1.0f : hoehe);
   simInvWeg = 1.0f / (float)(simWerkzeug - simOben);
   simFspitze = fspitze;

@@ -350,6 +350,28 @@ static const char WEBINFO_HTML[] = R"WEBINFO(<!doctype html>
       das Maß für die Gleichmäßigkeit.</p></dd></div>
     <div class="kennzahl"><dt>Pressarbeit</dt><dd><p>Fläche unter der Kurve ab Kontakt (Kraft × Weg) in Joule.</p></dd></div>
   </dl>
+  <h3>Auswertung (Karte „Auswertung“)</h3>
+  <p>Berechnet im Browser aus den gespeicherten Kurven; Fenster und Schwellen sind einstellbar und gelten für alle
+    Pressungen. <strong>Fügetiefe</strong> = Weg vom Kontakt bis zum Endpunkt minus „Anschlag ausschließen“.</p>
+  <dl>
+    <div class="kennzahl"><dt>Weg ab Kontakt</dt><dd><p>Kurven am Kontaktpunkt ausgerichtet: Unterschiede in Rohrlänge und
+      Einlegehöhe verschwinden, man vergleicht das Material.</p></dd></div>
+    <div class="kennzahl"><dt>Fügekraft</dt><dd><p>Größte Kraft bis vor den Anschlag – die Kraft der Verbindung, nicht des Werkzeugs.</p></dd></div>
+    <div class="kennzahl"><dt>Einführspitze</dt><dd><p>Erstes lokales Maximum in den ersten 40 % der Fügetiefe (Fase, Aufweiten
+      beginnt). Hinweis auf Fase, Grat und Durchmesser.</p></dd></div>
+    <div class="kennzahl"><dt>Plateau-Gerade</dt><dd><p>Lineare Regression im Plateaufenster. <strong>Steigung</strong> (Kraft je mm)
+      ≈ Reibwert × Flächenpressung × Umfang; <strong>Achsenabschnitt</strong> = Grundkraft des Aufweitens;
+      <strong>Laufruhe</strong> = Streuung um die Gerade (Ruckgleiten, beginnendes Kaltverschweißen).
+      Dazu die Arbeit im Plateaufenster.</p></dd></div>
+    <div class="kennzahl"><dt>Kraftabfall, Rissverdacht</dt><dd><p>Größter Kraftrückgang innerhalb der eingestellten Strecke im
+      Fügebereich. Ab der Schwelle (Standard 5 % in 0,05 mm) wird die Pressung als Rissverdacht markiert – typisch für ein
+      aufplatzendes dünnwandiges Rohr.</p></dd></div>
+    <div class="kennzahl"><dt>Wegfenster</dt><dd><p>Kraft an festen Wegen ab Kontakt (Standard 1, 2, 3, 4 mm), Grundlage für spätere
+      OK/NOK-Fenster.</p></dd></div>
+    <div class="kennzahl"><dt>Trend</dt><dd><p>Ein Kennwert über die Pressnummer mit Mittel und ±3σ. Ein langsamer Anstieg der
+      Plateaukraft oder der Laufruhe deutet auf Verschleiß oder nachlassende Schmierung.</p></dd></div>
+  </dl>
+  <p>„Auswertung als CSV“ exportiert alle Kennwerte und die Statistik in der gewählten Krafteinheit.</p>
   <p>Die Krafteinheit (N, kg oder lbs) ist über dem Diagramm wählbar; sie gilt auch für den CSV-Export.
     Gespeichert wird immer in N.</p>
   <h3>Einstellungen</h3>
