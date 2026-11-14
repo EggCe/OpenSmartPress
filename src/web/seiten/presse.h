@@ -26,7 +26,8 @@ static const char PRESSE_HTML[] = R"PRESSE(<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pressen</title>
 <link rel="stylesheet" href="/stil.css">
-<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";}catch(e){}</script>
+<script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";
+document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus")||'"bedienen"');}catch(e){document.documentElement.dataset.modus="bedienen";}</script>
 <style>
 main{max-width:none;margin:0;padding:14px 16px 28px;min-width:0}
 /* Rahmen: Menü links, Inhalt rechts */
@@ -67,7 +68,8 @@ body.eng .fuss{justify-content:center}
 /* Bühne: Steuerung + Diagramm auf dem ersten Bildschirm */
 .buehne{display:grid;grid-template-columns:minmax(290px,350px) minmax(0,1fr);gap:14px;height:calc(100vh - 28px);min-height:540px}
 .buehne > .karte{margin-top:0;display:flex;flex-direction:column;min-height:0}
-.steuer{overflow:auto}
+.steuer{overflow:hidden auto}   /* waagrecht nie scrollen (der Leuchtkreis ragt über den Rand) */
+body.faehrt .buehne{height:calc(100vh - 110px)}   /* Platz für die STOPP-Leiste */
 .plotfl{position:relative;flex:1 1 0;min-height:0;margin-top:8px}
 #plot{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair}
 .legende{font-size:11.5px;margin-top:6px}
@@ -93,14 +95,6 @@ letter-spacing:.9px;text-transform:uppercase}
 .pgrid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 .pgrid3{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:0 14px}
 @media (max-width:900px){.pgrid,.pgrid2,.pgrid3{grid-template-columns:1fr}}
-.schritt{display:grid;grid-template-columns:30px 1fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--rand)}
-.schritt:last-of-type{border-bottom:0}
-.schritt .nr{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;
-border:1px solid var(--rand2);color:var(--leise)}
-.schritt.ok .nr{background:var(--akzent);color:var(--akzentText);border-color:var(--akzent);box-shadow:0 0 10px var(--glow)}
-.schritt b{font-size:14px}
-.schritt .sub{margin:0}
-.schritt .knoepfe{margin-top:6px}
 button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
 #trend{width:100%;height:240px;display:block;cursor:pointer}
 .details{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-variant-numeric:tabular-nums}
@@ -120,15 +114,18 @@ tbody tr:hover td{background:rgba(var(--ar),.06)}
 .form input[type=text]{flex:1 1 160px;min-width:0}
 td .chip,td button{padding:2px 9px;font-size:12px}
 #log{height:200px}
-.awgitter{display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center}
-.awgitter label{justify-content:space-between}
 #awFenster{width:130px}
-dialog{background:var(--karte);color:var(--text);border:1px solid var(--rand2);border-radius:14px;padding:16px 18px;
-max-width:min(560px,calc(100vw - 32px));box-shadow:0 0 30px var(--glow)}
-dialog::backdrop{background:rgba(0,0,0,.65)}
-dialog input[type=number]{width:110px}
 .simkopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
-</style></head><body><div class="rahmen">
+:root[data-modus="bedienen"] .pgrid3{grid-template-columns:minmax(0,1fr)}
+.sitzkurz{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.sitzkurz button{text-align:left;border-radius:10px;display:flex;justify-content:space-between;gap:12px}
+.sitzkurz button span{color:var(--leise);font-weight:500}
+.fuss .modus{flex:none}
+</style></head><body>
+<div class="banner offline" id="offlineBanner" role="alert" hidden>Keine Verbindung zum Pico – Befehle sind gesperrt, die Seite verbindet sich von selbst neu.</div>
+<div class="banner sim" id="simBanner" hidden>SIMULATION aktiv – die Kraft wird berechnet, nicht gemessen
+  <button class="sendet" id="simAus">Simulation beenden</button></div>
+<div class="rahmen">
 <aside class="menue">
   <div class="kopf">
     <svg class="bild" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
@@ -157,11 +154,12 @@ dialog input[type=number]{width:110px}
   <nav class="block">
     <div class="grp">Auswertung</div>
     <a href="#bPressung">Pressung &amp; Liste</a>
-    <a href="#bTrend">Trend &amp; Einstellungen</a>
+    <a href="#bTrend">Trend &amp; Auswertung</a>
     <a href="#bStatistik">Sitzungsstatistik</a>
     <a href="#sitzungen">Sitzungen</a>
-    <a href="#bParameter">Parameter &amp; Protokoll</a>
+    <a class="einr" href="#bParameter">Parameter &amp; Protokoll</a>
   </nav>
+  <div class="block"><div class="grp">Modus</div><div class="modus" title="Bedienen: nur was für die Produktion nötig ist · Einrichten: alle Einstellungen, Simulation, Protokoll"><button data-m="bedienen">Bedienen</button><button data-m="einrichten">Einrichten</button></div></div>
   <div class="fuss"><div class="themen block" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div><button id="einklappen" title="Menü ein-/ausklappen">«</button></div>
 </aside>
 <main id="oben">
@@ -173,7 +171,7 @@ dialog input[type=number]{width:110px}
       <div><div class="sub" style="margin:0">Kraft</div><div class="gross" id="lvKraft">–</div></div>
       <div class="neben"><div id="lvZust">–</div><div>Pos. <b id="lvPos">–</b> mm</div></div>
     </div>
-    <div class="simkopf">
+    <div class="simkopf einr">
       <label title="Ohne Motor: die Kraft wird aus der Position berechnet">
         <input type="checkbox" id="sim"> Simulation ohne Motor</label>
       <button id="simOeffnen" title="Geschwindigkeit, Weg, Kraft, Werkzeugabstand der Simulation">Parameter …</button>
@@ -181,19 +179,19 @@ dialog input[type=number]{width:110px}
     <div class="schritt" id="s1"><div class="nr">1</div><div>
       <b>Werkzeug auflegen und tarieren</b>
       <div class="sub" id="s1t">–</div>
-      <div class="knoepfe"><button data-c="t">Tara</button></div></div></div>
+      <div class="knoepfe"><button data-c="t" title="Mittelt etwa 2 s und setzt den Wert als Nullpunkt – Werkzeug liegt auf, kein Werkstück">Tara</button></div></div></div>
     <div class="schritt" id="s2"><div class="nr">2</div><div>
       <b>Hub kalibrieren</b>
       <div class="sub" id="s2t">–</div>
-      <div class="knoepfe"><button data-c="mot kal">Hub kalibrieren</button></div></div></div>
+      <div class="knoepfe"><button data-c="mot kal" title="Fährt langsam auf das Werkzeug, merkt sich den Werkzeug-Endpunkt (Weg 0) und fährt zurück">Hub kalibrieren</button></div></div></div>
     <div class="schritt" id="s3"><div class="nr">3</div><div>
       <b>Sitzung wählen</b>
       <div class="sub" id="s3t">–</div>
-      <div class="knoepfe"><button id="zuSitzungen">Sitzungen …</button></div></div></div>
+      <div class="knoepfe"><button id="zuSitzungen">Sitzung wählen …</button></div></div></div>
     <div class="schritt" id="s4"><div class="nr">4</div><div>
       <b>Werkstück einlegen und starten</b>
       <div class="sub" id="s4t">–</div>
-      <div class="knoepfe"><button class="primaer start" id="start" disabled>START</button>
+      <div class="knoepfe"><button class="primaer start sendet" id="start" disabled>START</button>
         <button class="stopp" data-c="x" title="Taste Esc">STOPP</button></div></div></div>
   </div>
 
@@ -235,7 +233,7 @@ dialog input[type=number]{width:110px}
     <div class="sub" id="trendSub">Mittelwert (Linie) und ±3σ (gestrichelt) der gültigen Pressungen · Klick: Pressung auswählen</div>
     <canvas id="trend"></canvas>
   </div>
-  <div class="karte">
+  <div class="karte einr">
     <div class="titel">Auswertung</div>
     <div class="awgitter">
       <label>Plateau von [% der Fügetiefe]</label><input type="number" id="awVon" min="0" max="95" step="5">
@@ -261,21 +259,23 @@ dialog input[type=number]{width:110px}
   <div class="form">
     <input type="text" id="neuName" maxlength="47" placeholder="Name der neuen Sitzung, z. B. Charge 2026-11-14 / Werkzeug A">
     <input type="text" id="neuNotiz" maxlength="95" placeholder="Notiz (optional)">
-    <button class="primaer" id="neu">Neue Sitzung anlegen</button>
-    <button id="schliessen">Aktive Sitzung schließen</button>
+    <button class="primaer sendet" id="neu">Neue Sitzung anlegen</button>
+    <button class="sendet" id="schliessen">Aktive Sitzung schließen</button>
   </div>
   <div class="scroll"><table id="liste"></table></div>
 </div>
 
-<div class="pgrid2" id="bParameter">
+<div class="pgrid2 einr" id="bParameter">
   <div class="karte">
     <div class="titel">Pressparameter</div>
     <div class="leiste">
       <label>Pressen ab [mm über Endpunkt, max. 10] <input type="number" id="pAnfahrt" min="0" max="10" step="0.1"></label>
       <label>Pressgeschw. [mm/s] <input type="number" id="pVpress" min="0.01" max="20" step="0.01"></label>
       <label>Haltezeit [ms] <input type="number" id="pHalt" min="0" max="60000" step="100"></label>
+      <label title="Bei dieser Kraft hält der Motor sofort an (Pressung, Kalibrierung, Fahrt). Höchstens Nennlast."><span>Maximalkraft [<span class="fe">N</span>]</span> <input type="number" id="pFmax" min="0" step="any"></label>
+      <label title="Laständerung, ab der beim Kalibrieren und Pressen ein Kontakt erkannt wird"><span>Kontakt ab [<span class="fe">N</span>]</span> <input type="number" id="pKontakt" min="0" step="any"></label>
     </div>
-    <div class="knoepfe"><button id="pSetzen">Übernehmen</button><button data-c="s">Im Flash speichern</button></div>
+    <div class="knoepfe"><button class="sendet" id="pSetzen">Übernehmen</button><button data-c="s" title="Alle Einstellungen dauerhaft speichern (Befehl s)">Im Flash speichern</button></div>
     <div class="sub" id="pInfo">&nbsp;</div>
   </div>
   <div class="karte">
@@ -308,14 +308,37 @@ dialog input[type=number]{width:110px}
   <div class="sub">Ein geänderter Werkzeugabstand setzt das virtuelle Werkzeug neu: danach Hub kalibrieren.
     Anfahrpunkt und Haltezeit stehen unter „Pressparameter“.</div>
 </dialog>
+<dialog id="sitzDlg">
+  <div class="titel">Sitzung wählen</div>
+  <div class="sub">Jede Pressung wird sofort in der aktiven Sitzung gespeichert.</div>
+  <div class="form">
+    <input type="text" id="dlgName" maxlength="47" placeholder="Name der neuen Sitzung">
+    <input type="text" id="dlgNotiz" maxlength="95" placeholder="Notiz (optional)">
+    <button class="primaer sendet" id="dlgNeu">Neu anlegen</button>
+  </div>
+  <div class="sub" style="margin-top:12px">… oder eine vorhandene öffnen:</div>
+  <div class="sitzkurz" id="dlgListe"></div>
+  <div class="knoepfe"><button id="dlgAlle">Alle Sitzungen verwalten</button><button id="dlgZu">Schließen</button></div>
+</dialog>
+<dialog id="umbDlg">
+  <div class="titel">Sitzung umbenennen</div>
+  <div class="awgitter" style="margin-top:6px">
+    <label for="umbName">Name</label><input type="text" id="umbName" maxlength="47">
+    <label for="umbNotiz">Notiz</label><input type="text" id="umbNotiz" maxlength="95">
+  </div>
+  <div class="knoepfe"><button class="primaer sendet" id="umbOk">Speichern</button><button id="umbZu">Abbrechen</button></div>
+</dialog>
 </main></div>
+<div class="stoppleiste" id="stoppleiste" hidden><span id="stoppText">Antrieb fährt</span>
+  <button class="stopp" data-c="x" title="Taste Esc">STOPP</button></div>
+<div class="meldungen" id="meldungen" role="status" aria-live="polite"></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
 const STUFE=0.02;
 const GRUND=["-","Endpunkt erreicht","Kontakt","Maximalkraft","Alarm vom Treiber","STOPP-Taster","Stopp-Befehl","keine Messwerte","kein Kontakt","Sensorfehler"];
-const STATUS=["OK","Abbruch","Kraft im Eilgang"];
-let S=null,online=false,ln=null,logRest="";
+const STATUS=["abgeschlossen","Abbruch","Kraft im Eilgang"];   // 0 = ohne Abbruch beendet (keine Gut/Schlecht-Aussage)
+let S=null,online=false,ln=null,logRest="",offlineSeit=Date.now();
 let sitId=-1,sitN=0,ladeNr=0,holt=false,sitName="";
 let pressen=new Map();               // nr -> {k,x,y,a}  (a = Auswertung)
 let auswahl=0,versteckt=new Set();
@@ -363,28 +386,61 @@ awZeigen();
 // Uhr des Pico stellen (hat keine eigene)
 fetch("/zeit",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({t:Math.floor(Date.now()/1000),tz:-new Date().getTimezoneOffset()})}).catch(()=>{});
 
+// ---------- Rückmeldung: Antworten des Pico nach einem Befehl, Fehler immer (unten rechts) ----------
+let rmBis=0;
+function meldung(text,art){
+  const box=$("meldungen"),el=document.createElement("div");
+  el.className="meldung"+(art?" "+art:"");el.textContent=text;box.appendChild(el);
+  while(box.children.length>4)box.firstChild.remove();
+  setTimeout(()=>el.remove(),art==="fehler"?9000:art==="warn"?6000:4000);
+}
+const RM_FEHLER=/FEHLER|ALARM|Sensorfehler|Ungueltig|Unbekannt/i;
+const RM_WARN=/abgebrochen|abgelehnt|verweigert|nicht |erst |kein|zuerst|Hinweis|Warn|faehrt/i;
+let logGeladen=false;                                         // erste Antwort = alter Verlauf: keine Meldungen
+function rueckmeldung(zeilen){
+  if(!logGeladen)return;
+  const jetzt=Date.now(),l=[];
+  for(const z of zeilen){
+    if(!z.startsWith("#")||z.startsWith("#CFG"))continue;
+    const t=z.replace(/^#\s*/,"").trim();
+    if(!t||/^[-=]{3}/.test(t))continue;
+    const art=RM_FEHLER.test(t)?"fehler":RM_WARN.test(t)?"warn":"";
+    if(jetzt<rmBis||art==="fehler")l.push([t,art]);
+  }
+  const zeig=l.length>3?l.slice(0,2):l;
+  for(const [t,art] of zeig)meldung(t,art);
+  if(l.length>3)meldung("… "+(l.length-2)+" weitere Zeilen im Protokoll","");
+}
 async function befehl(c){
-  try{await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});}
-  catch(e){logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
+  rmBis=Date.now()+3500;
+  try{const r=await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});
+    if(!r.ok)meldung("Befehl „"+c+"“ abgelehnt (HTTP "+r.status+")","fehler");}
+  catch(e){meldung("Befehl „"+c+"“ nicht gesendet – keine Verbindung","fehler");
+    logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
 }
 async function aktion(o){
-  try{const r=await fetch("/sitzung",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams(o)});const j=await r.json();listeLaden();return j.ok===1;}
-  catch(e){return false;}
+  rmBis=Date.now()+3500;
+  try{const r=await fetch("/sitzung",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams(o)});const j=await r.json();listeLaden();
+    if(j.ok!==1)meldung("Sitzung: Aktion nicht ausgeführt – Grund im Protokoll","warn");
+    return j.ok===1;}
+  catch(e){meldung("Sitzung: keine Verbindung zum Pico","fehler");return false;}
 }
 document.querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>befehl(b.dataset.c));
 $("start").onclick=()=>befehl("pr");
 document.addEventListener("keydown",e=>{if(e.key==="Escape")befehl("x");});
+// Während der Antrieb fährt nicht neu laden oder wegnavigieren (der Pico liefert dann ohnehin nur eine Warteseite)
+window.addEventListener("beforeunload",e=>{if(online&&S&&(S.bes||S.pr.lauf)){e.preventDefault();e.returnValue="";}});
 $("senden").onclick=senden;
 $("befehl").onkeydown=e=>{if(e.key==="Enter")senden();};
 function senden(){const t=$("befehl").value.trim();if(t){befehl(t);$("befehl").value="";}}
-$("zuSitzungen").onclick=()=>{$("sitzungen").scrollIntoView({behavior:"smooth"});$("neuName").focus();};
+$("zuSitzungen").onclick=sitzDialog;
 $("zeige").onchange=$("abbr").onchange=$("nurKontakt").onchange=()=>{ansicht=null;neuZeichnen=true;};
 $("xmodus").onchange=()=>{lsSchreiben("wz_xmodus",$("xmodus").value);ansicht=null;neuZeichnen=true;};
 $("einheit").onchange=()=>{
   E=EINHEITEN[$("einheit").value]||EINHEITEN.N;
   lsSchreiben("wz_einheit2",$("einheit").value);
   ansicht=null;
-  anzeigenAktualisieren();listeLaden();if(S){ablaufZeigen();statusZeigen();parameterZeigen();}
+  anzeigenAktualisieren();listeLaden();if(S){ablaufZeigen();statusZeigen();parameterZeigen(true);}
 };
 $("trendWert").onchange=()=>{lsSchreiben("wz_trend",$("trendWert").value);neuZeichnen=true;};
 
@@ -671,6 +727,23 @@ function kennListe(){
     ["zeit","Presszeit","s",2,p=>p.k.presszeitS]);
   return l;
 }
+// Erklärungen der Kennwerte (title, erscheint beim Darüberfahren)
+const TIPP={
+  fuege:"Höchste Kraft ab Kontakt bis vor den Anschlag – die eigentliche Einpresskraft",
+  spitze:"Erstes deutliches Kraftmaximum beim Einführen (in den ersten 40 % der Fügetiefe)",
+  steigung:"Steigung der Ausgleichsgeraden im Plateaufenster: wie stark die Kraft mit dem Weg zunimmt",
+  achse:"Kraft der Plateau-Geraden beim Kontakt (Weg 0)",
+  laufruhe:"Streuung der Kraft um die Plateau-Gerade – klein = gleichmäßiges Fügen, groß = Ruckeln oder Fressen",
+  abfall:"Größter Kraftrückgang innerhalb der eingestellten Strecke – ab dem eingestellten Prozentwert Rissverdacht",
+  parbeit:"Fläche unter der Kurve im Plateaufenster",
+  fend:"Kraft am Ende des Pressens (am Anschlag)",
+  kontakt:"Weg, bei dem das Werkstück berührt wurde (0 = Werkzeug-Endpunkt)",
+  tiefe:"Weg vom Kontakt bis zum Ende des Pressens",
+  arbeit:"Fläche unter der ganzen Kurve ab Kontakt",
+  zeit:"Dauer des Pressens ohne Eilgang und Rückfahrt",
+  fx:"Kraft genau bei diesem Weg ab Kontakt",
+  status:"abgeschlossen = ohne Abbruch beendet. Sagt nichts über die Qualität des Teils."};
+const tt=id=>{const s=TIPP[id]||(/^f\d/.test(id)?TIPP.fx:"");return s?' title="'+esc(s)+'"':'';};
 const istF=t=>t==="F"||t==="F/mm";
 const kwert=(p,m)=>{const v=m[4](p);return (v===undefined||v===null)?NaN:(istF(m[2])?v*E.f:v);};
 const kstellen=m=>istF(m[2])?E.d+m[3]:m[3];
@@ -696,12 +769,26 @@ async function abfragen(){
   try{
     const q=new URLSearchParams({ab:live.n,id:live.id});
     if(ln!==null)q.set("l",ln);
-    const r=await fetch("/presse/status?"+q,{cache:"no-store"});
-    verarbeiten(await r.json());
-    online=true;
-  }catch(e){online=false;statusZeigen();}
+    const ac=new AbortController(),zl=setTimeout(()=>ac.abort(),2500);   // hängt der Pico, nicht ewig warten
+    try{
+      const r=await fetch("/presse/status?"+q,{cache:"no-store",signal:ac.signal});
+      const d=await r.json();
+      online=true;offlineSeit=0;
+      verarbeiten(d);
+    }finally{clearTimeout(zl);}
+  }catch(e){online=false;if(!offlineSeit)offlineSeit=Date.now();statusZeigen();}
   setTimeout(abfragen,250);
 }
+// Verbindung, STOPP-Leiste, Simulationshinweis
+function leistenZeigen(){
+  const off=!!offlineSeit&&Date.now()-offlineSeit>1200;
+  $("offlineBanner").hidden=!off;document.body.classList.toggle("offline",off);
+  const faehrt=!off&&!!S&&!!(S.bes||S.pr.lauf);
+  $("stoppleiste").hidden=!faehrt;document.body.classList.toggle("faehrt",faehrt);
+  if(faehrt)$("stoppText").textContent=S.zust+(S.pos!==null?" · "+fmt(S.pos,2)+" mm":"")+" · "+fk(S.kraft);
+  $("simBanner").hidden=off||!S||!S.sim;
+}
+setInterval(leistenZeigen,500);
 function verarbeiten(d){
   S=d;
   const p=d.pr;
@@ -715,8 +802,8 @@ function verarbeiten(d){
   if(id!==sitId){sitzungLaden(id);listeLaden();}
   else if(d.sit&&d.sit.n>sitN&&!holt)neuePressen(d.sit.n);
   if(d.log)logAufnehmen(d.log);
-  ln=d.ln;
-  ablaufZeigen();statusZeigen();parameterZeigen();
+  ln=d.ln;logGeladen=true;
+  ablaufZeigen();statusZeigen();parameterZeigen();leistenZeigen();
 }
 function statusZeigen(){
   const el=$("status");
@@ -737,7 +824,7 @@ function ablaufZeigen(){
   const nahNull=Math.abs(d.kraft)<Math.max(0.5,d.par.kontakt*0.5);
   if(document.activeElement!==$("sim"))$("sim").checked=!!d.sim;
   schritt(1,d.ok&&(d.kal||d.sim)&&nahNull,!d.ok?'<span class="warn">ADC misst nicht</span>':
-    !d.kal&&!d.sim?'<span class="warn">Waage nicht kalibriert – auf der Messseite kalibrieren</span>':
+    !d.kal&&!d.sim?'<span class="warn">Waage nicht kalibriert</span> – <a href="/#kalibrieren">jetzt kalibrieren</a> (Messseite)':
     'Kraft jetzt: <b>'+fk(d.kraft,1)+'</b>'+(nahNull?' – tariert':' – mit Werkzeug „Tara“ drücken'));
   schritt(2,!!d.end.akt,d.end.akt?'Werkzeug-Kontakt '+fmt(d.end.tiefe,3)+' mm unter Start, Endpunkt +'+fmt(d.end.ende,4)+
     ' mm bei '+fk(d.end.kraft):'nach jedem Einschalten nötig – Werkzeug aufgelegt, Werkstück entnommen');
@@ -756,15 +843,15 @@ function statistik(){
   for(const m of kennListe()){
     const x=r[m[0]];if(!x)continue;
     const d=kstellen(m);
-    h+='<tr><td>'+m[1]+' ['+keinheit(m[2])+']</td><td><b>'+fmt(x.m,d)+'</b></td><td>'+fmt(x.s,d+1)+'</td><td>'+
+    h+='<tr><td'+tt(m[0])+'>'+m[1]+' ['+keinheit(m[2])+']</td><td><b>'+fmt(x.m,d)+'</b></td><td>'+fmt(x.s,d+1)+'</td><td>'+
       (x.m!==0&&m[2]!=="%"?fmt(100*x.s/Math.abs(x.m),2):"–")+'</td><td>'+fmt(x.min,d)+'</td><td>'+fmt(x.max,d)+'</td><td>'+fmt(x.max-x.min,d)+'</td></tr>';
   }
   $("stat").innerHTML=h+'</table>';
 }
 function tabelle(){
   const F=E.n;
-  let h='<thead><tr><th></th><th>Nr</th><th>Zeit</th><th>Fügekraft '+F+'</th><th>Spitze '+F+'</th><th>Steigung '+F+'/mm</th>'+
-    '<th>Laufruhe '+F+'</th><th>Abfall %</th><th>Fend '+F+'</th><th>Status</th></tr></thead><tbody>';
+  let h='<thead><tr><th></th><th>Nr</th><th>Zeit</th><th'+tt("fuege")+'>Fügekraft '+F+'</th><th'+tt("spitze")+'>Spitze '+F+'</th><th'+tt("steigung")+'>Steigung '+F+'/mm</th>'+
+    '<th'+tt("laufruhe")+'>Laufruhe '+F+'</th><th'+tt("abfall")+'>Abfall %</th><th'+tt("fend")+'>Fend '+F+'</th><th'+tt("status")+'>Status</th></tr></thead><tbody>';
   for(const p of [...pressen.values()].sort((a,b)=>b.k.nr-a.k.nr)){
     const k=p.k,a=p.a;
     const st=(STATUS[k.status]||"?")+(k.sim?' (Sim.)':'');
@@ -797,7 +884,7 @@ function details(){
     let abw='';
     if(x&&x.n>=2&&isFinite(v)&&!k.status){const dv=v-x.m;
       abw='<i>'+(dv>=0?"+":"")+fmt(dv,d)+(x.m&&m[2]!=="%"?' ('+(dv>=0?"+":"")+fmt(100*dv/Math.abs(x.m),1)+' %)':'')+' zum Mittel</i>';}
-    return '<dt>'+m[1]+'</dt><dd><b>'+fmt(v,d)+'</b> '+keinheit(m[2])+(zusatz||'')+abw+'</dd>';
+    return '<dt'+tt(id)+'>'+m[1]+'</dt><dd><b>'+fmt(v,d)+'</b> '+keinheit(m[2])+(zusatz||'')+abw+'</dd>';
   };
   const bei=mm=>isFinite(mm)?' <i>bei '+fmt(mm,3)+' mm</i>':'';
   const gr=t=>'<div class="gruppe">'+t+'</div>';
@@ -825,8 +912,8 @@ function kurzwerte(){
   const el=$("kurz"),p=pressen.get(auswahl);
   if(!p){el.hidden=true;return;}
   const k=p.k,a=p.a,liste=kennListe();
-  const z=id=>{const m=liste.find(x=>x[0]===id);return m?'<dt>'+m[1].replace(/ \(.*\)$| gesamt$/,"")+'</dt><dd><b>'+fmt(kwert(p,m),kstellen(m))+'</b> '+keinheit(m[2])+'</dd>':'';};
-  const st=k.status?'<span class="warn">'+(STATUS[k.status]||"?")+'</span>':a.riss?'<span class="warn">⚠ Rissverdacht</span>':'<span class="ok">OK</span>';
+  const z=id=>{const m=liste.find(x=>x[0]===id);return m?'<dt'+tt(id)+'>'+m[1].replace(/ \(.*\)$| gesamt$/,"")+'</dt><dd><b>'+fmt(kwert(p,m),kstellen(m))+'</b> '+keinheit(m[2])+'</dd>':'';};
+  const st=k.status?'<span class="warn">'+(STATUS[k.status]||"?")+'</span>':a.riss?'<span class="warn">⚠ Rissverdacht</span>':'<span class="ok">abgeschlossen</span>';
   el.innerHTML='<div class="kk">Pressung '+k.nr+'<span>'+st+(k.sim?' · Sim.':'')+'</span></div>'+
     '<dl>'+z("fuege")+z("spitze")+'<dt>Höchstkraft</dt><dd><b>'+fmt(kr(k.fmaxN),E.d)+'</b> '+E.n+'</dd>'+
     z("fend")+z("tiefe")+z("arbeit")+z("abfall")+'</dl>';
@@ -994,6 +1081,15 @@ function themaSetzen(t){
 document.querySelectorAll(".themen button").forEach(b=>b.onclick=()=>{themaSetzen(b.dataset.t);neuZeichnen=true;});
 themaSetzen(document.documentElement.dataset.thema||"");
 
+// ---------- Modus Bedienen / Einrichten (gilt für beide Seiten, im Browser gespeichert) ----------
+function modusSetzen(m){
+  document.documentElement.dataset.modus=m;lsSchreiben("wz_modus",m);
+  document.querySelectorAll(".modus button").forEach(b=>b.classList.toggle("aktiv",b.dataset.m===m));
+  neuZeichnen=true;
+}
+document.querySelectorAll(".modus button").forEach(b=>b.onclick=()=>modusSetzen(b.dataset.m));
+modusSetzen(document.documentElement.dataset.modus==="einrichten"?"einrichten":"bedienen");
+
 // ---------- Menü links ein-/ausklappen (mehr Platz für das Diagramm) ----------
 function menueEng(eng){document.body.classList.toggle("eng",eng);$("einklappen").textContent=eng?"»":"«";neuZeichnen=true;}
 menueEng(!!lsLesen("wz_menueEng",false));
@@ -1083,9 +1179,11 @@ $("awCsv").onclick=()=>{
 };
 
 // ---------- Sitzungen ----------
+let sitzListe=[],sitzAktiv=0;
 async function listeLaden(){
   try{
     const d=await (await fetch("/sitzungen",{cache:"no-store"})).json();
+    sitzListe=d.liste;sitzAktiv=d.aktiv;
     $("speicher").textContent="Speicher: "+fmt(d.sp.b/1024,0)+" von "+fmt(d.sp.g/1024,0)+" KB belegt";
     $("speicherBalken").style.width=(d.sp.g?Math.min(100,100*d.sp.b/d.sp.g):0)+"%";
     let h='<thead><tr><th>Nr</th><th>Name</th><th>Erstellt</th><th>Pressungen</th><th>Notiz</th><th></th></tr></thead><tbody>';
@@ -1093,11 +1191,11 @@ async function listeLaden(){
       const akt=s.id===d.aktiv;
       h+='<tr'+(akt?' class="sel"':'')+'><td>'+s.id+'</td><td>'+(akt?'<b>'+esc(s.name)+'</b> (aktiv)':esc(s.name))+'</td><td>'+esc(s.erst)+
         '</td><td>'+s.n+'</td><td>'+esc(s.notiz)+'</td><td style="white-space:nowrap">'+
-        (akt?'':'<button data-a="wahl" data-id="'+s.id+'">Öffnen</button> ')+
+        (akt?'':'<button class="sendet" data-a="wahl" data-id="'+s.id+'">Öffnen</button> ')+
         '<a class="chip" href="/sitzung/export?id='+s.id+'&f=csv&e='+$("einheit").value+'" download>CSV</a> '+
         '<a class="chip" href="/sitzung/export?id='+s.id+'&f=json" download>JSON</a> '+
-        '<button data-a="aendern" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-notiz="'+esc(s.notiz)+'">Umbenennen</button> '+
-        '<button data-a="loeschen" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-n="'+s.n+'">Löschen</button></td></tr>';
+        '<button class="einr sendet" data-a="aendern" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-notiz="'+esc(s.notiz)+'">Umbenennen</button> '+
+        '<button class="einr sendet" data-a="loeschen" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-n="'+s.n+'">Löschen</button></td></tr>';
     }
     $("liste").innerHTML=h+'</tbody>';
     $("liste").querySelectorAll("button[data-a]").forEach(b=>b.onclick=async e=>{
@@ -1105,11 +1203,36 @@ async function listeLaden(){
       const a=b.dataset.a,id=b.dataset.id;
       if(a==="wahl")aktion({a,id});
       else if(a==="loeschen"){if(confirm("Sitzung "+id+" „"+b.dataset.name+"“ mit "+b.dataset.n+" Pressungen endgültig löschen?\nVorher exportieren!"))aktion({a,id});}
-      else if(a==="aendern"){const name=prompt("Neuer Name:",b.dataset.name);if(name===null)return;
-        const notiz=prompt("Notiz:",b.dataset.notiz);aktion({a,id,name,notiz:notiz===null?b.dataset.notiz:notiz});}
+      else if(a==="aendern"){$("umbName").value=b.dataset.name;$("umbNotiz").value=b.dataset.notiz;$("umbDlg").dataset.id=id;
+        $("umbDlg").showModal();$("umbName").focus();}
     });
   }catch(e){}
 }
+// Umbenennen
+$("umbZu").onclick=()=>$("umbDlg").close();
+$("umbOk").onclick=async()=>{
+  const name=$("umbName").value.trim();
+  if(!name){$("umbName").focus();return;}
+  if(await aktion({a:"aendern",id:$("umbDlg").dataset.id,name,notiz:$("umbNotiz").value.trim()}))$("umbDlg").close();
+};
+// Schritt 3: Sitzung wählen oder anlegen, ohne die Seite zu verlassen
+function sitzDialog(){
+  const heute=new Date().toLocaleDateString("sv-SE");                 // JJJJ-MM-TT
+  if(!$("dlgName").value)$("dlgName").value="Charge "+heute;
+  const l=sitzListe.slice(-6).reverse();
+  $("dlgListe").innerHTML=l.length?l.map(s=>'<button class="sendet" data-id="'+s.id+'"'+(s.id===sitzAktiv?' disabled':'')+'>'+esc(s.name)+
+    '<span>'+(s.id===sitzAktiv?'aktiv · ':'')+s.n+' Pressungen · '+esc(s.erst)+'</span></button>').join(""):'<div class="sub">noch keine Sitzungen</div>';
+  $("dlgListe").querySelectorAll("button").forEach(b=>b.onclick=async()=>{if(await aktion({a:"wahl",id:b.dataset.id}))$("sitzDlg").close();});
+  $("sitzDlg").showModal();$("dlgName").select();
+}
+$("dlgNeu").onclick=async()=>{
+  const name=$("dlgName").value.trim();
+  if(!name){$("dlgName").focus();return;}
+  if(await aktion({a:"neu",name,notiz:$("dlgNotiz").value.trim()})){$("dlgName").value="";$("dlgNotiz").value="";$("sitzDlg").close();}
+};
+$("dlgName").onkeydown=e=>{if(e.key==="Enter")$("dlgNeu").click();};
+$("dlgZu").onclick=()=>$("sitzDlg").close();
+$("dlgAlle").onclick=()=>{$("sitzDlg").close();$("sitzungen").scrollIntoView({behavior:"smooth"});};
 $("neu").onclick=async()=>{
   const name=$("neuName").value.trim();
   if(!name){$("neuName").focus();return;}
@@ -1167,26 +1290,39 @@ $("simSetzen").onclick=async()=>{
   if(isFinite(v)&&S&&Math.abs(v-S.par.vpress)>1e-4)await befehl("mp vpress "+v);
   $("simDlg").close();
 };
+$("simAus").onclick=()=>befehl("sim aus");
 $("sim").onchange=async e=>{
   if(e.target.checked){const ls=lsLesen("wz_sim",null);if(ls)await simSenden(ls);befehl("sim an");}
   else befehl("sim aus");
 };
 
 // ---------- Parameter ----------
-function parameterZeigen(){
+// [Feld, mp-Name, Wert aus S.par, Anzeige -> Pico-Einheit]; Kräfte: Anzeige in der gewählten Einheit, Pico in Gramm
+const G_PRO_N=1/0.00980665;
+const PFELD=[["pAnfahrt","anfahrt",p=>p.anfahrt,v=>v],["pVpress","vpress",p=>p.vpress,v=>v],["pHalt","halt",p=>p.halt,v=>v],
+  ["pFmax","fmax",p=>+kr(p.fmax).toFixed(E.d),v=>Math.round(v/E.f*G_PRO_N)],
+  ["pKontakt","kontakt",p=>+kr(p.kontakt).toFixed(E.d+1),v=>Math.round(v/E.f*G_PRO_N)]];
+function parameterZeigen(neuEinheit){
   const p=S.par;
-  for(const [id,v] of [["pAnfahrt",p.anfahrt],["pVpress",p.vpress],["pHalt",p.halt]]){
-    const el=$(id);if(document.activeElement!==el&&!el.dataset.geaendert)el.value=v;
+  document.querySelectorAll(".fe").forEach(e=>{e.textContent=E.n;});
+  for(const [id,,wert] of PFELD){
+    const el=$(id);
+    if(neuEinheit){el.classList.remove("geaendert");}
+    if(document.activeElement!==el&&!el.classList.contains("geaendert"))el.value=wert(p);
   }
-  $("pInfo").textContent="Maximalkraft "+fk(p.fmax,-1)+" · Kontakt ab "+fk(p.kontakt)+" · Eilgang "+fmt(p.vfahrt,1)+
-    " mm/s · Ändern von fmax/kontakt mit 'mp fmax <g>' bzw. 'mp kontakt <g>'";
+  const offen=PFELD.some(([id])=>$(id).classList.contains("geaendert"));
+  $("pInfo").innerHTML=(offen?'<span class="warn">Geänderte Werte (markiert) erst mit „Übernehmen“ senden.</span> ':'')+
+    "Eilgang "+fmt(p.vfahrt,1)+" mm/s. Übernommene Werte gelten bis zum Neustart; dauerhaft mit „Im Flash speichern“.";
 }
-for(const id of ["pAnfahrt","pVpress","pHalt"])$(id).oninput=e=>{e.target.dataset.geaendert="1";};
+for(const [id] of PFELD)$(id).oninput=e=>{e.target.classList.add("geaendert");if(S)parameterZeigen();};
 $("pSetzen").onclick=async()=>{
-  await befehl("mp anfahrt "+$("pAnfahrt").value);
-  await befehl("mp vpress "+$("pVpress").value);
-  await befehl("mp halt "+$("pHalt").value);
-  for(const id of ["pAnfahrt","pVpress","pHalt"])delete $(id).dataset.geaendert;
+  for(const [id,name,,umr] of PFELD){                       // nur geänderte Werte schicken
+    const el=$(id);if(!el.classList.contains("geaendert"))continue;
+    const v=parseFloat(String(el.value).replace(",","."));
+    el.classList.remove("geaendert");
+    if(isFinite(v))await befehl("mp "+name+" "+umr(v));
+  }
+  if(S)parameterZeigen();
 };
 
 // ---------- Protokoll ----------
@@ -1202,7 +1338,9 @@ function logAufnehmen(neu){
   const t=logRest+neu,i=t.lastIndexOf("\n");
   if(i<0){logRest=t;return;}
   logRest=t.slice(i+1);
-  logText(t.slice(0,i+1).split("\n").filter(z=>!z.startsWith("#CFG")).join("\n"));
+  const zeilen=t.slice(0,i+1).split("\n");
+  rueckmeldung(zeilen);
+  logText(zeilen.filter(z=>!z.startsWith("#CFG")).join("\n"));
 }
 
 trendAuswahl();

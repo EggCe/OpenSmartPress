@@ -50,6 +50,7 @@ static void hintergrund() {
 // Seite und Status
 // ===========================================================================
 static void webPresseSeite() {
+  if (webSeiteGesperrt()) return;                       // nicht während einer Pressung (siehe webserver.cpp)
   srv->send_P(200, "text/html; charset=utf-8", PRESSE_HTML);
 }
 

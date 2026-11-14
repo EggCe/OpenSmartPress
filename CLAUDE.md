@@ -29,7 +29,7 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   ```
   ~/bin/arduino-cli compile --fqbn rp2040:rp2040:rpipicow:flash=2097152_1048576 --warnings all .
   ```
-  Must build without compiler warnings. Reference size: ~575 KB of 1 MB flash, ~219 KB static RAM (~43 KB left for
+  Must build without compiler warnings. Reference size: ~598 KB of 1 MB flash, ~219 KB static RAM (~43 KB left for
   heap/stack — the IDE's generic "low memory" notice above 75 % is expected; do not add more big buffers; CI fails
   above 224 000 bytes; `wd` shows both cores' stack high-water marks). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
 - Host tests: `sh tests/host/run.sh` (g++; on this Windows machine `wsl -e sh tests/host/run.sh`). They cover the

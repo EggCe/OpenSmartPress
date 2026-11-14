@@ -52,24 +52,54 @@ Tara ist der Nullpunkt in Counts, der Faktor sind Counts pro Gramm (zuletzt etwa
 
 ## Regler
 
+### Bedienen und Einrichten
+
+Oben rechts (Messseite) bzw. im Menü links (Pressseite) wählt **Bedienen / Einrichten**, wie viel die Seiten zeigen.
+Der Browser merkt sich die Wahl für beide Seiten; ein neuer Browser startet mit **Bedienen**.
+
+- **Bedienen** – nur was für die Produktion nötig ist: Tara, Hub kalibrieren, Sitzung wählen, START/STOPP,
+  Diagramm, Pressungen, Trend und Statistik.
+- **Einrichten** – zusätzlich Datenrate, Glättung, Statistik, Rauschtests, Waage kalibrieren, Speichern,
+  Tippbetrieb des Motors, Simulation, Pressparameter, Auswerteeinstellungen, Umbenennen/Löschen von Sitzungen,
+  Protokoll und Befehlszeile.
+
+Das ist eine Ansichtswahl, kein Zugriffsschutz.
+
+Auf beiden Seiten gilt:
+
+- **STOPP-Leiste** – Solange der Antrieb fährt, steht unten in der Mitte eine Leiste mit Zustand, Position, Kraft
+  und **STOPP**, auch wenn weiter unten gescrollt ist. Die Taste **Esc** hält ebenfalls an.
+- **Rückmeldungen** – Nach einem Knopfdruck erscheint die Antwort des Pico einige Sekunden unten rechts
+  (gelb = Hinweis, rot = Fehler). Fehlermeldungen des Pico erscheinen dort immer. Alles steht weiterhin im Protokoll.
+- **Keine Verbindung** – Antwortet der Pico länger als etwa 1 s nicht, erscheint oben ein roter Balken und alle
+  Befehlsknöpfe außer STOPP sind gesperrt, bis die Verbindung wieder steht.
+- **Kein Neuladen während der Fahrt** – Während der Antrieb fährt, fragt der Browser vor dem Neuladen oder Verlassen
+  der Seite nach; der Pico liefert dann nur eine kurze Warteseite, die sich nach dem Ende von selbst neu lädt.
+  (Das Senden der ganzen Seite würde den Pico so lange aufhalten, dass Messwerte der Pressung verloren gingen.)
+- Über unterstrichene Begriffe (z. B. Kennwerte) fahren zeigt eine kurze Erklärung.
+
 ### Steuerung auf der Messseite
+
+Regler mit (E) erscheinen nur im Modus Einrichten.
 
 | Regler | Was er tut | Tipp |
 |---|---|---|
-| Datenrate | Wie oft der ADC pro Sekunde misst (2,5 bis 30000 SPS). Nach jedem Wechsel kalibriert sich der ADC kurz selbst. | Siehe [Datenrate](#datenrate). Für Wägungen 2000 SPS. |
+| Datenrate (E) | Wie oft der ADC pro Sekunde misst (2,5 bis 30000 SPS). Nach jedem Wechsel kalibriert sich der ADC kurz selbst. | Siehe [Datenrate](#datenrate). Für Wägungen 2000 SPS. |
 | Anzeige | Einheit für Gewichtsanzeige und Diagramm: Gramm, µV (Brückenspannung) oder Counts (Rohwert). | µV und Counts helfen bei der Fehlersuche, weil sie nicht von Tara und Faktor abhängen. |
 | Fenster | Wie viele Sekunden das Diagramm zeigt (1–600 s). | Kurz (2–5 s) für schnelle Vorgänge, lang (60 s und mehr) für Drift. |
-| Glättung | Gleitender Mittelwert über die gewählte Zeit. Wirkt auf die Gewichtsanzeige und die grüne Linie, nicht auf die Statistik. | Die Anzeige hinkt etwa um die halbe Glättungszeit hinterher. |
-| Rohsignal | Blendet die blasse, ungeglättete Linie ein oder aus. | Aus, wenn nur der geglättete Verlauf interessiert. |
-| Statistik | Über wie viele Sekunden die Live-Statistik gerechnet wird. Danach beginnt eine neue Runde. | 2–5 s für den Alltag, 30–60 s für genaue Rauschwerte. |
-| Min/Max-Band | Grüne Fläche zwischen kleinstem und größtem Rohwert je Diagrammpunkt (je 20 ms). | Wird das Band plötzlich breiter, kommt eine Störung dazu. |
+| Glättung (E) | Gleitender Mittelwert über die gewählte Zeit. Wirkt auf die Gewichtsanzeige und die grüne Linie, nicht auf die Statistik. | Die Anzeige hinkt etwa um die halbe Glättungszeit hinterher. |
+| Rohsignal (E) | Blendet die blasse, ungeglättete Linie ein oder aus. | Aus, wenn nur der geglättete Verlauf interessiert. |
+| Statistik (E) | Über wie viele Sekunden die Live-Statistik gerechnet wird. Danach beginnt eine neue Runde. | 2–5 s für den Alltag, 30–60 s für genaue Rauschwerte. |
+| Min/Max-Band (E) | Grüne Fläche zwischen kleinstem und größtem Rohwert je Diagrammpunkt (je 20 ms). | Wird das Band plötzlich breiter, kommt eine Störung dazu. |
 | Pause | Friert den angezeigten Verlauf ein. Die Messung läuft weiter. | Im angehaltenen Verlauf kann weiter gezoomt und verschoben werden. |
 | Y-Skala | **Auto** passt die Achse laufend an. **Auto mit Null** hält die Null-Linie im Bild. **Fest** nutzt die Werte für „von“ und „bis“ in der gewählten Einheit. | Im Diagramm: Mausrad zoomt um den Mauszeiger, Ziehen verschiebt, Doppelklick schaltet auf Auto. Bei fester Skala zeigt „▲ Werte darüber“ bzw. „▼ darunter“, dass etwas abgeschnitten ist. Beim Wechsel der Einheit springt die Skala auf Auto. |
 | Tara | Mittelt etwa 2 s und setzt diesen Wert als Nullpunkt. | Nur bei entlasteter, ruhiger Zelle drücken. |
-| Rauschtest | Misst etwa 5 s ungeglättet und schreibt eine ausführliche Rauschanalyse ins Protokoll. | Zelle dabei nicht berühren. |
-| Rauschvergleich | Misst nacheinander bei mehreren Datenraten und gibt eine Vergleichstabelle aus. | Dauert etwa 25 s. Danach wird die vorherige Datenrate wiederhergestellt. |
-| Info | Schreibt den aktuellen Gerätestatus ins Protokoll. | Zeigt auch verlorene Werte und die WLAN-Verbindung. |
-| Abbruch | Bricht Tara, Kalibrierung oder Rauschtest ab. | Läuft nichts, schaltet er die USB-Ausgabe aus. |
+| Waage kalibrieren … (E) | Öffnet den Kalibrierdialog: entlasten und tarieren, bekanntes Gewicht auflegen und Gewicht in Gramm eingeben, Ergebnis speichern. | Siehe [Kalibrieren](#kalibrieren). |
+| Speichern (E) | Speichert Tara, Faktor, Glättung, Datenrate und Ausgabemodus dauerhaft (wie `s`). | Ohne Speichern gelten Änderungen nur bis zum Neustart. |
+| Rauschtest (E) | Misst etwa 5 s ungeglättet und schreibt eine ausführliche Rauschanalyse ins Protokoll. | Zelle dabei nicht berühren. |
+| Rauschvergleich (E) | Misst nacheinander bei mehreren Datenraten und gibt eine Vergleichstabelle aus. | Dauert etwa 25 s. Danach wird die vorherige Datenrate wiederhergestellt. |
+| Info (E) | Schreibt den aktuellen Gerätestatus ins Protokoll. | Zeigt auch verlorene Werte und die WLAN-Verbindung. |
+| Auftrag abbrechen | Bricht Tara, Kalibrierung oder Rauschtest ab (wie STOPP, hält also auch den Motor an). | Läuft nichts, schaltet er die USB-Ausgabe aus. |
 | CSV speichern | Lädt die Diagrammdaten herunter: Zeit, Mittel, Min, Max und geglätteter Wert, 50 Zeilen pro Sekunde. | Für jeden einzelnen Messwert die Aufzeichnung über USB mit `waegezelle_plot.py` nutzen. |
 
 ---
@@ -186,6 +216,10 @@ laufen lassen.
 
 ### Faktor bestimmen
 
+Am einfachsten über **„Waage kalibrieren …“** auf der Messseite (Modus Einrichten): Der Dialog führt durch Tara,
+Kalibrieren mit dem bekannten Gewicht und Speichern und zeigt den neuen Faktor. Steht auf der Pressseite „Waage
+nicht kalibriert“, öffnet der Link dort diesen Dialog. Von Hand bzw. über USB:
+
 1. Datenrate 2000 SPS, Gerät warmgelaufen.
 2. Zelle entlasten, warten bis ruhig, **Tara**.
 3. Bekanntes Gewicht mittig auflegen, **möglichst 5 kg oder mehr** (10 % der Nennlast). Etwa 10 s warten.
@@ -229,9 +263,9 @@ an, sobald Kontakt oder die Maximalkraft erreicht ist. Aufwärts darf der Motor 
 5. Stopp testen: langsam abwärts fahren und von Hand auf die Zelle drücken. Der Motor muss sofort stehen.
 6. Mit `s` speichern.
 
-### Endpunkt kalibrieren
+### Hub kalibrieren (Endpunkt)
 
-Startet mit dem Knopf auf der Mess- oder Pressseite oder `mot kal`. Das Werkzeug liegt auf der Zelle, ohne
+Startet mit dem Knopf **„Hub kalibrieren“** auf der Mess- oder Pressseite oder `mot kal`. Das Werkzeug liegt auf der Zelle, ohne
 Werkstück. Nach jedem Einschalten nötig, weil die Position des Motors dann unbekannt ist.
 
 1. Langsam abwärts (`vsuch`, Standard 1 mm/s), höchstens über den Hub von 45 mm.
@@ -290,7 +324,8 @@ Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten.
 1. **Werkzeug auflegen und tarieren.** Das Gewicht des Werkzeugs wird abgezogen.
 2. **Hub kalibrieren** (ohne Werkstück): Der Motor fährt auf das Werkzeug, merkt sich den Werkzeug-Endpunkt (Weg 0)
    und den tatsächlichen Endpunkt und fährt zurück.
-3. **Sitzung wählen oder anlegen.** Jede Pressung wird sofort in der aktiven Sitzung gespeichert.
+3. **Sitzung wählen oder anlegen** („Sitzung wählen …“: neue Sitzung mit vorgeschlagenem Namen „Charge
+   JJJJ-MM-TT“ anlegen oder eine der letzten öffnen). Jede Pressung wird sofort in der aktiven Sitzung gespeichert.
 4. **Werkstück einlegen und START** (Knopf oder Taster): Eilgang bis zum Anfahrpunkt, dann mit Pressgeschwindigkeit
    bis zum kalibrierten Endpunkt (oder bis zur Maximalkraft), Haltezeit, zurück zum Start.
 
@@ -299,6 +334,9 @@ Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten.
 Jede Pressung erscheint als Kurve **Kraft über Weg**; alle Pressungen der Sitzung liegen übereinander. Der Weg zählt
 ab dem Werkzeug-Endpunkt: Das Werkstück berührt also bei einem negativen Weg. Ein Klick auf eine Kurve oder eine
 Tabellenzeile zeigt ihre Kennwerte und die Abweichung zum Mittel der Sitzung.
+
+Status **abgeschlossen** heißt: Die Pressung lief ohne Abbruch bis zum Ende. Das ist **keine** Gut/Schlecht-Aussage
+über das Teil – dafür Kennwerte, Rissverdacht und Trend prüfen.
 
 - **Spitzenkraft** – Größte Kraft der Pressung und der Weg, bei dem sie auftrat.
 - **Endkraft** – Mittel der letzten ca. 10 ms am Endpunkt; mit Haltezeit zusätzlich die Kraft am Ende der Haltezeit.
@@ -374,12 +412,18 @@ Start auf 10 mm begrenzt. Die 960 Punkte der Pico-Kurve liegen bei 5 mm höchste
 10,4 µm auseinander – so knapp wie möglich einstellen.
 `mp vpress <mm/s>`: Pressgeschwindigkeit. `mp halt <ms>`: Haltezeit am Endpunkt. Danach `s`.
 
+Auf der Pressseite (Modus Einrichten) stehen diese Werte unter **Pressparameter**, dazu **Maximalkraft** (`mp fmax`)
+und **Kontakt ab** (`mp kontakt`) in der gewählten Krafteinheit (der Pico rechnet in Gramm). Geänderte Felder sind
+gelb markiert, bis sie mit „Übernehmen“ gesendet sind; es werden nur geänderte Werte gesendet. Dauerhaft erst mit
+„Im Flash speichern“.
+
 ### Simulation ohne Motor
 
-`sim an` oder der Schalter auf der Pressseite: Die Kraft wird aus der Position berechnet – virtuelles Werkzeug
+`sim an` oder der Schalter auf der Pressseite (Modus Einrichten): Die Kraft wird aus der Position berechnet – virtuelles Werkzeug
 unter der aktuellen Position, je Pressung ein Werkstück mit zufälliger Spitzenkraft. ADC und Zelle müssen
 angeschlossen sein, `mp spmm` gesetzt. Danach Hub kalibrieren und pressen. Simulierte Pressungen sind markiert;
-nach einem Neustart ist die Simulation aus.
+nach einem Neustart ist die Simulation aus. Solange sie läuft, steht oben auf der Pressseite ein gelb-gestreifter
+Balken mit „Simulation beenden“ – in beiden Modi.
 
 Der Knopf **„Parameter …“** neben dem Schalter öffnet das Simulationsfenster (oder `sim par` / `sim <name> <wert>`):
 
