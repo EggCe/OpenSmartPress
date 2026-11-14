@@ -28,8 +28,8 @@
  *   - Ringpuffer: genau ein Erzeuger (ISR) und ein Verbraucher (loop) ->
  *     ohne Sperren, nur mit Speicherbarrieren. Funktioniert auch, wenn die
  *     ISR später auf Kern 1 verlegt wird (enableDrdyInterrupt in setup1()).
- *   - setDrdyCallback(): Funktion, die IM Interrupt nach dem Lesen aufgerufen
- *     wird (z. B. Schrittzähler einfrieren). Kurz halten!
+ *   - setDrdyCallback(): Funktion, die IM Interrupt nach dem Lesen mit Zeitstempel
+ *     und Messwert aufgerufen wird (z. B. Kraftüberwachung des Antriebs). Kurz halten!
  */
 #pragma once
 
@@ -109,8 +109,8 @@ public:
     int32_t  counts;    // vorzeichenrichtiger 24-Bit-Wert
   };
 
-  // Callback, der im DRDY-Interrupt aufgerufen wird (kurz halten!)
-  typedef void (*DrdyCallback)(uint32_t zeitstempelMikros);
+  // Callback, der im DRDY-Interrupt für jeden gültigen Messwert aufgerufen wird (kurz halten!)
+  typedef void (*DrdyCallback)(uint32_t zeitstempelMikros, int32_t counts);
 
   // pinPDWN = -1, wenn der Pin nicht angeschlossen ist
   ADS1256(SPIClass &spi, uint8_t pinCS, uint8_t pinDRDY, int8_t pinPDWN = -1,
