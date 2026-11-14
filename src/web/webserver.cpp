@@ -15,7 +15,6 @@
 #include "wlan.h"
 #include "seiten/webstil.h"
 #include "seiten/webui.h"
-#include "seiten/webinfo.h"
 
 static WebServer server(80);
 static char      jsonPuf[1400];
@@ -72,10 +71,6 @@ void jsonEnde() {
 // ===========================================================================
 static void webSeite() {
   server.send_P(200, "text/html; charset=utf-8", WEBUI_HTML);
-}
-
-static void webInfo() {
-  server.send_P(200, "text/html; charset=utf-8", WEBINFO_HTML);
 }
 
 static void webStil() {
@@ -170,7 +165,6 @@ static void webBefehl() {
 // ===========================================================================
 void webserverStarten() {
   server.on("/", HTTP_GET, webSeite);
-  server.on("/info", HTTP_GET, webInfo);
   server.on("/stil.css", HTTP_GET, webStil);
   server.on("/daten", HTTP_GET, webDaten);
   server.on("/cmd", webBefehl);    // GET oder POST

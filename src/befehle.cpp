@@ -48,7 +48,8 @@ static void zeigeHilfe() {
   meld.println(F("#      mot                Antrieb: Status"));
   meld.println(F("#      mot kal            Hub kalibrieren (Endpunkt-Kalibrierung, nach jedem Einschalten noetig)"));
   meld.println(F("#      pr                 Pressung starten (wie START-Taster); 'pr x' bricht ab"));
-  meld.println(F("#      sim [an|aus]       Simulation ohne Motor: Kraft 25-35 kg wird aus der Position berechnet"));
+  meld.println(F("#      sim [an|aus]       Simulation ohne Motor: Kraft wird aus der Position berechnet"));
+  meld.println(F("#      sim par | sim <name> <wert>  Simulationsparameter (werkzeug weg fmin fmax rauschen riss spitze)"));
   meld.println(F("#      sit                Sitzungen anzeigen; sit neu <Name> | wahl <Nr> | zu | loeschen <Nr> ja"));
   meld.println(F("#      mot ab|auf <mm>    Tippbetrieb; 'mot s <n>' = n Schritte (+ ab)"));
   meld.println(F("#      mot null|ein|aus   Position 0 setzen / Motorstrom ein / aus"));
@@ -84,6 +85,7 @@ static void zeigeInfo() {
                 filterSekunden(), filterBloecke(), (unsigned long)filterBlockLaenge());
   }
   meld.printf("# Ausgabemodus:   %u\n", cfg.modus);
+  meld.printf("# Freier Heap:    %lu Byte\n", (unsigned long)rp2040.getFreeHeap());
   meld.printf("# Tara:           %.1f Counts\n", cfg.tara);
   meld.printf("# Faktor:         %.5f Counts/g (%s)\n", cfg.faktor,
               cfg.kalibriert ? "kalibriert" : "Schaetzwert, NICHT kalibriert");
@@ -190,8 +192,7 @@ void verarbeiteBefehl(char *text) {
   if (strcmp(cmd, "sim") == 0) {
     if (a1 && strcmp(a1, "an") == 0)       motorSimulationSetzen(true);
     else if (a1 && strcmp(a1, "aus") == 0) motorSimulationSetzen(false);
-    else meld.println(motorSimulation() ? F("# Simulation ist an ('sim aus' beendet).")
-                                        : F("# Simulation ist aus ('sim an': Pressen ohne Motor, Kraft 25-35 kg berechnet)."));
+    else motorSimParameter(a1 ? a1 : "par", a2);
     return;
   }
   if (strcmp(cmd, "pr") == 0) {

@@ -18,3 +18,15 @@ double motorMaxKraftG();                                      // wirksame Maxima
 bool motorEndpunktAktuell();                                  // Hub seit dem Einschalten kalibriert
 bool motorSimulation();                                       // Simulation ohne Motor aktiv
 void motorSimulationSetzen(bool an);                          // Befehl 'sim an|aus'
+void motorSimParameter(const char *name, const char *wert);    // Befehl 'sim <name> <wert>' bzw. 'sim par'
+
+// Parameter des Kraftmodells (nur im RAM; die Pressseite merkt sie sich im Browser)
+struct SimEinst {
+  float werkzeugMm;         // virtuelles Werkzeug so weit unter der Position beim Einschalten
+  float wegMm;              // Höhe des Werkstücks über dem Werkzeug = Fügeweg
+  float fminG, fmaxG;       // Spitzenkraft je Pressung zufällig dazwischen
+  float rauschenG;          // Rauschen +- g
+  float rissProzent;        // Anteil der Pressungen mit Riss
+  float spitzeProzent;      // Einführspitze in % der Spitzenkraft
+};
+const SimEinst &motorSimEinst();

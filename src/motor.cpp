@@ -13,12 +13,48 @@ static bool endpunktAktuell = false;
 
 // Simulation ohne Motor: Kraftmodell auf Kern 1 (nur im RAM, nach dem Einschalten aus)
 static bool simulation = false;
-static constexpr float SIM_WERKZEUG_MM = 15.0f;   // virtuelles Werkzeug unter der Position beim Einschalten
-static constexpr float SIM_HOEHE_MM    = 3.0f;    // virtuelles Werkstück steht so weit über dem Werkzeug
-static constexpr float SIM_FMIN_G      = 25000.0f;
-static constexpr float SIM_FMAX_G      = 35000.0f;
+static SimEinst sim = {15.0f, 3.0f, 25000.0f, 35000.0f, 30.0f, 100.0f / 12.0f, 12.0f};
 
 bool motorSimulation() { return simulation; }
+const SimEinst &motorSimEinst() { return sim; }
+
+static void simZeigen() {
+  meld.printf("# Simulation %s:\n", simulation ? "AN" : "aus");
+  meld.printf("#  werkzeug %8.2f  mm virtuelles Werkzeug unter der Position beim Einschalten\n", sim.werkzeugMm);
+  meld.printf("#  weg      %8.2f  mm Fuegeweg (Werkstueck ueber dem Werkzeug, max. %.1f mm)\n", sim.wegMm, PRESSWEG_MAX_MM);
+  meld.printf("#  fmin     %8.0f  g kleinste Spitzenkraft\n", sim.fminG);
+  meld.printf("#  fmax     %8.0f  g groesste Spitzenkraft\n", sim.fmaxG);
+  meld.printf("#  rauschen %8.0f  g Rauschen (+-)\n", sim.rauschenG);
+  meld.printf("#  riss     %8.1f  %% der Pressungen mit Riss\n", sim.rissProzent);
+  meld.printf("#  spitze   %8.1f  %% Einfuehrspitze (Anteil der Spitzenkraft)\n", sim.spitzeProzent);
+}
+
+void motorSimParameter(const char *name, const char *wert) {
+  if (!name || strcmp(name, "par") == 0) { simZeigen(); return; }
+  if (!wert) { meld.println(F("# Aufruf: sim <name> <wert>   ('sim par' zeigt alle)")); return; }
+  if (antrieb::beschaeftigt()) { meld.println(F("# Antrieb faehrt - Simulation erst danach aendern ('x').")); return; }
+  const float w = strtof(wert, nullptr);
+  bool ok = isfinite(w);
+  const float altWerkzeug = sim.werkzeugMm;
+  if      (strcmp(name, "werkzeug") == 0) { ok = ok && w >= 1.0f && w <= 45.0f;          if (ok) sim.werkzeugMm = w; }
+  else if (strcmp(name, "weg") == 0)      { ok = ok && w >= 0.1f && w <= PRESSWEG_MAX_MM; if (ok) sim.wegMm = w; }
+  else if (strcmp(name, "fmin") == 0)     { ok = ok && w >= 100.0f && w <= NENNLAST_G;   if (ok) sim.fminG = w; }
+  else if (strcmp(name, "fmax") == 0)     { ok = ok && w >= 100.0f && w <= NENNLAST_G;   if (ok) sim.fmaxG = w; }
+  else if (strcmp(name, "rauschen") == 0) { ok = ok && w >= 0.0f && w <= 2000.0f;        if (ok) sim.rauschenG = w; }
+  else if (strcmp(name, "riss") == 0)     { ok = ok && w >= 0.0f && w <= 100.0f;         if (ok) sim.rissProzent = w; }
+  else if (strcmp(name, "spitze") == 0)   { ok = ok && w >= 0.0f && w <= 50.0f;          if (ok) sim.spitzeProzent = w; }
+  else { meld.printf("# Unbekannter Simulationsparameter '%s' ('sim par' zeigt alle).\n", name); return; }
+  if (!ok) { meld.printf("# Ungueltiger Wert fuer '%s' ('sim par' zeigt die Bereiche).\n", name); return; }
+  if (sim.fmaxG < sim.fminG) {                    // min/max vertauscht: beide auf den neuen Wert
+    if (strcmp(name, "fmin") == 0) sim.fmaxG = sim.fminG; else sim.fminG = sim.fmaxG;
+  }
+  if (simulation && sim.werkzeugMm != altWerkzeug) {
+    endpunktAktuell = false;                      // Welt hat sich geaendert
+    meld.println(F("# Werkzeugabstand geaendert: virtuelles Werkzeug neu gesetzt - Hub neu kalibrieren."));
+  }
+  if (simulation) antriebSenden(antrieb::BefehlTyp::PARAM, 0);
+  meld.printf("# Simulation: %s = %s\n", name, wert);
+}
 
 void motorSimulationSetzen(bool an) {
   if (an == simulation) {
@@ -36,8 +72,8 @@ void motorSimulationSetzen(bool an) {
   if (an) {
     meld.printf("# SIMULATION an: kein Motor noetig, die Kraft wird aus der Position berechnet.\n"
                 "#   Virtuelles Werkzeug %.0f mm unter der aktuellen Position, Werkstueck %.0f mm hoch,\n"
-                "#   Spitzenkraft je Pressung zufaellig %.0f-%.0f kg. Jetzt 'Hub kalibrieren', dann pressen.\n",
-                SIM_WERKZEUG_MM, SIM_HOEHE_MM, SIM_FMIN_G / 1000.0f, SIM_FMAX_G / 1000.0f);
+                "#   Spitzenkraft je Pressung zufaellig %.1f-%.1f kg ('sim par'). Jetzt 'Hub kalibrieren', dann pressen.\n",
+                sim.werkzeugMm, sim.wegMm, sim.fminG / 1000.0f, sim.fmaxG / 1000.0f);
   } else {
     meld.println(F("# Simulation aus: Kraft kommt wieder von der Waegezelle. Hub neu kalibrieren."));
   }
@@ -77,10 +113,13 @@ static antrieb::Param antriebParam() {
   p.haltMs        = pres.haltMs;
   p.simulation     = simulation ? 1 : 0;
   p.countsProGramm = (float)fa;
-  p.simWerkzeugMm  = SIM_WERKZEUG_MM;
-  p.simHoeheMm     = SIM_HOEHE_MM;
-  p.simFminG       = SIM_FMIN_G;
-  p.simFmaxG       = SIM_FMAX_G;
+  p.simWerkzeugMm  = sim.werkzeugMm;
+  p.simHoeheMm     = sim.wegMm;
+  p.simFminG       = sim.fminG;
+  p.simFmaxG       = sim.fmaxG;
+  p.simRauschenG   = sim.rauschenG;
+  p.simRissAnteil  = sim.rissProzent / 100.0f;
+  p.simSpitze      = sim.spitzeProzent / 100.0f;
   return p;
 }
 
@@ -280,7 +319,8 @@ void motorParameter(const char *name, const char *wert) {
     meld.printf("#  ueber   %10ld  Schritte Ueberlauf nach dem Kontakt\n", (long)mot.ueberSchritte);
     meld.printf("#  kontakt %10.0f  g Lastaenderung, die als Kontakt gilt\n", mot.kontaktG);
     meld.printf("#  fmax    %10.0f  g Maximalkraft, Abwaertsfahrt stoppt sofort (wirksam: %.0f g)\n", mot.maxKraftG, motorMaxKraftG());
-    meld.printf("#  anfahrt %10.2f  mm ueber dem Werkzeug-Endpunkt: bis hier Eilgang, danach Pressgeschwindigkeit\n", pres.anfahrtMm);
+    meld.printf("#  anfahrt %10.2f  mm ueber dem Werkzeug-Endpunkt: bis hier Eilgang, danach Pressgeschwindigkeit (max. %.1f)\n",
+                pres.anfahrtMm, PRESSWEG_MAX_MM);
     meld.printf("#  vpress  %10.3f  mm/s Pressgeschwindigkeit\n", pres.vPressMmS);
     meld.printf("#  halt    %10lu  ms Haltezeit am Endpunkt\n", (unsigned long)pres.haltMs);
     if (mot.schritteProMm > 0.0f) {
@@ -305,7 +345,7 @@ void motorParameter(const char *name, const char *wert) {
   else if (strcmp(name, "ueber") == 0)   { ok = ok && w >= 0.0f && w <= 10000.0f; if (ok) mot.ueberSchritte = (int32_t)lroundf(w); }
   else if (strcmp(name, "kontakt") == 0) { ok = ok && w >= 5.0f && w <= 5000.0f;  if (ok) mot.kontaktG = w; }
   else if (strcmp(name, "fmax") == 0)    { ok = ok && w >= 100.0f && w <= NENNLAST_G; if (ok) mot.maxKraftG = w; }
-  else if (strcmp(name, "anfahrt") == 0) { ok = ok && w >= 0.0f && w <= 45.0f;    if (ok) pres.anfahrtMm = w; }
+  else if (strcmp(name, "anfahrt") == 0) { ok = ok && w >= 0.0f && w <= PRESSWEG_MAX_MM; if (ok) pres.anfahrtMm = w; }
   else if (strcmp(name, "vpress") == 0)  { ok = ok && w >= 0.01f && w <= 20.0f;   if (ok) pres.vPressMmS = w; }
   else if (strcmp(name, "halt") == 0)    { ok = ok && w >= 0.0f && w <= 60000.0f; if (ok) pres.haltMs = (uint32_t)lroundf(w); }
   else { meld.printf("# Unbekannter Parameter '%s' ('mp' zeigt alle).\n", name); return; }

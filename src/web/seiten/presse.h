@@ -12,6 +12,12 @@
  *
  * Daten: GET /presse/status (4x pro Sekunde), Kurven binär über /sitzung/index und
  * /sitzung/presse. Das Binärformat (PressKopf, 128 Byte) steht in src/sitzungen.h.
+ *
+ * Rohdaten: Während einer Pressung holt die Seite alle 100 ms jede neue Probe über
+ * GET /presse/roh (Format in src/web/presse_web.cpp) und legt sie nach dem Speichern
+ * in der IndexedDB ab ("roh": alle Proben, "kurve": Mittel je Motorschritt). Ist eine
+ * passende Rohkurve vorhanden (gleiche Probenzahl), wird sie statt der Pico-Kurve
+ * (<= 960 Abschnitte) für Auswahl, Auswertung und Rohdaten-CSV benutzt.
  */
 #pragma once
 
@@ -55,6 +61,11 @@ td .chip,td button{padding:2px 9px;font-size:12px}
 .awgitter{display:grid;grid-template-columns:auto auto;gap:6px 10px;align-items:center}
 .awgitter label{justify-content:space-between}
 #awFenster{width:130px}
+dialog{background:var(--karte);color:var(--text);border:1px solid var(--rand2);border-radius:14px;padding:16px 18px;
+max-width:min(560px,calc(100vw - 32px));box-shadow:0 0 30px var(--glow)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog input[type=number]{width:110px}
+.simkopf{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 </style></head><body><main>
 <header>
   <div class="marke">
@@ -65,15 +76,18 @@ td .chip,td button{padding:2px 9px;font-size:12px}
   <div class="kopfrechts">
     <div class="status" id="status">verbinde …</div>
     <a class="chip" href="/">Messseite</a>
-    <a class="chip" href="/info#presse">Hilfe</a>
+    <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md#pressen" target="_blank" rel="noopener">Hilfe</a>
   </div>
 </header>
 
 <div class="pgrid">
   <div class="karte glow">
     <div class="titel">Ablauf</div>
-    <label title="Ohne Motor: die Kraft wird aus der Position berechnet (Werkstück 25–35 kg)">
-      <input type="checkbox" id="sim"> Simulation ohne Motor (25–35 kg)</label>
+    <div class="simkopf">
+      <label title="Ohne Motor: die Kraft wird aus der Position berechnet">
+        <input type="checkbox" id="sim"> Simulation ohne Motor</label>
+      <button id="simOeffnen" title="Geschwindigkeit, Weg, Kraft, Werkzeugabstand der Simulation">Parameter …</button>
+    </div>
     <div class="schritt" id="s1"><div class="nr">1</div><div>
       <b>Werkzeug auflegen und tarieren</b>
       <div class="sub" id="s1t">–</div>
@@ -159,7 +173,7 @@ td .chip,td button{padding:2px 9px;font-size:12px}
   <div class="karte">
     <div class="titel">Pressparameter</div>
     <div class="leiste">
-      <label>Eilgang bis [mm über Endpunkt] <input type="number" id="pAnfahrt" min="0" max="45" step="0.1"></label>
+      <label>Pressen ab [mm über Endpunkt, max. 10] <input type="number" id="pAnfahrt" min="0" max="10" step="0.1"></label>
       <label>Pressgeschw. [mm/s] <input type="number" id="pVpress" min="0.01" max="20" step="0.01"></label>
       <label>Haltezeit [ms] <input type="number" id="pHalt" min="0" max="60000" step="100"></label>
     </div>
@@ -175,6 +189,27 @@ td .chip,td button{padding:2px 9px;font-size:12px}
     </div>
   </div>
 </div>
+<dialog id="simDlg">
+  <div class="titel">Simulation</div>
+  <div class="sub">Kraftmodell ohne Motor: virtuelles Werkzeug, je Pressung ein Werkstück mit zufälliger Spitzenkraft
+    zwischen „von“ und „bis“. Die Werte gelten bis zum Neustart des Pico; dieser Browser merkt sie sich und schickt sie
+    beim Einschalten der Simulation wieder.</div>
+  <div class="awgitter" style="margin-top:10px">
+    <label>Pressgeschwindigkeit [mm/s]</label><input type="number" id="sVpress" min="0.01" max="20" step="0.05">
+    <label>Werkzeugabstand (Hub bis zum Werkzeug) [mm]</label><input type="number" id="sWerkzeug" min="1" max="45" step="0.5">
+    <label>Fügeweg (Werkstückhöhe) [mm]</label><input type="number" id="sWeg" min="0.1" max="10" step="0.1">
+    <label>Spitzenkraft von [kg]</label><input type="number" id="sFmin" min="0.1" max="50" step="0.5">
+    <label>Spitzenkraft bis [kg]</label><input type="number" id="sFmax" min="0.1" max="50" step="0.5">
+    <label>Rauschen ± [g]</label><input type="number" id="sRauschen" min="0" max="2000" step="5">
+    <label>Rissquote [% der Pressungen]</label><input type="number" id="sRiss" min="0" max="100" step="1">
+    <label>Einführspitze [% der Spitzenkraft]</label><input type="number" id="sSpitze" min="0" max="50" step="1">
+  </div>
+  <div class="sub" id="simInfo" style="margin-top:8px"></div>
+  <div class="knoepfe" style="margin-top:10px"><button class="primaer" id="simSetzen">Übernehmen</button>
+    <button id="simStandard">Standardwerte</button><button id="simZu">Schließen</button></div>
+  <div class="sub">Ein geänderter Werkzeugabstand setzt das virtuelle Werkzeug neu: danach Hub kalibrieren.
+    Anfahrpunkt und Haltezeit stehen unter „Pressparameter“.</div>
+</dialog>
 </main>
 <script>
 "use strict";
@@ -188,6 +223,7 @@ let pressen=new Map();               // nr -> {k,x,y,a}  (a = Auswertung)
 let auswahl=0,versteckt=new Set();
 let live={id:-1,n:0,s:0,d:0,y:[],lauf:0};
 let ansicht=null,geo=null,tgeo=null,neuZeichnen=true;
+let roh={id:-1,n:0,luecke:false,teile:[],fertig:false,ende:false},rohHolt=false;
 
 const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?"–":v.toLocaleString("de-DE",{minimumFractionDigits:Math.max(0,d),maximumFractionDigits:Math.max(0,d)});
 const zeitText=z=>z?new Date(z*1000).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"medium"}):"–";
@@ -239,7 +275,6 @@ async function aktion(o){
 }
 document.querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>befehl(b.dataset.c));
 $("start").onclick=()=>befehl("pr");
-$("sim").onchange=e=>befehl(e.target.checked?"sim an":"sim aus");
 document.addEventListener("keydown",e=>{if(e.key==="Escape")befehl("x");});
 $("senden").onclick=senden;
 $("befehl").onkeydown=e=>{if(e.key==="Enter")senden();};
@@ -275,6 +310,7 @@ async function kurveLaden(id,nr,token){
   auswerten(p);
   pressen.set(nr,p);
   spaeterAktualisieren();
+  dbHolen("kurve",rohSchluessel(id,nr)).then(m=>{if(token===ladeNr&&pressen.get(nr)===p)rohAnwenden(p,m);});
   return true;
 }
 async function sitzungLaden(id){
@@ -311,6 +347,120 @@ async function neuePressen(n){
   finally{holt=false;}
 }
 
+// ---------- Rohdaten im Browser (IndexedDB): jede Probe, Kurve mit einem Punkt je Motorschritt ----------
+const ROH_MAGIC=0x31484F52;                                  // "ROH1"
+const dbBereit=new Promise(res=>{try{const r=indexedDB.open("opensmartpress",1);
+  r.onupgradeneeded=()=>{r.result.createObjectStore("roh");r.result.createObjectStore("kurve");};
+  r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});
+async function dbHolen(store,key){
+  const db=await dbBereit;if(!db)return null;
+  return new Promise(res=>{try{const q=db.transaction(store).objectStore(store).get(key);
+    q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);}catch(e){res(null);}});
+}
+async function dbAblegen(eintraege){
+  const db=await dbBereit;if(!db)return false;
+  return new Promise(res=>{try{const tx=db.transaction(["roh","kurve"],"readwrite");
+    for(const [st,k,v] of eintraege)tx.objectStore(st).put(v,k);
+    tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>res(false);}catch(e){res(false);}});
+}
+const rohSchluessel=(sit,nr)=>sit+"/"+nr;
+// RohProbe (8 Byte): t4 u16 (4 µs, läuft über) | last i24 (Counts über Tara) | pos 23 Bit (Schritte ab start) + Bit 23 Halten
+function rohDekodieren(r){
+  const dv=new DataView(r.daten),n=r.n,t=new Float64Array(n),schritt=new Int32Array(n),F=new Float32Array(n),halt=new Uint8Array(n);
+  const nProCount=0.00980665/r.fa;
+  let prev=(r.t0>>>2)&0xFFFF,tu=0;
+  for(let i=0;i<n;i++){
+    const o=i*8,t4=dv.getUint16(o,true);
+    tu+=((t4-prev)&0xFFFF)*4;prev=t4;t[i]=tu*1e-6;
+    let l=dv.getUint8(o+2)|dv.getUint8(o+3)<<8|dv.getUint8(o+4)<<16;if(l&0x800000)l-=0x1000000;
+    const w=dv.getUint8(o+5)|dv.getUint8(o+6)<<8|dv.getUint8(o+7)<<16;
+    let p=w&0x7FFFFF;if(p&0x400000)p-=0x800000;
+    halt[i]=w>>>23;schritt[i]=r.startSchritt+p;F[i]=l*nProCount;
+  }
+  return {t,schritt,F,halt};
+}
+// Kurve: Mittel der Kraft je Motorschritt (nur Drücken) - feiner geht es nicht, der Pico kennt nur Schritte
+function schrittKurve(r){
+  const d=rohDekodieren(r),xs=[],ys=[];
+  let akt=NaN,sum=0,k=0;
+  for(let i=0;i<r.n;i++){
+    if(d.halt[i])continue;
+    if(d.schritt[i]!==akt){if(k){xs.push(akt/r.spmm);ys.push(sum/k);}akt=d.schritt[i];sum=0;k=0;}
+    sum+=d.F[i];k++;
+  }
+  if(k){xs.push(akt/r.spmm);ys.push(sum/k);}
+  return {x:Float32Array.from(xs),y:Float32Array.from(ys)};
+}
+// Rohkurve übernehmen, wenn sie zu dieser Pressung gehört (gleiche Probenzahl, Zeit passt)
+function rohAnwenden(p,m){
+  if(!m||m.n!==p.k.proben||m.x.length<2||(p.k.zeit&&m.zeit&&Math.abs(m.zeit-p.k.zeit)>600))return false;
+  p.rx=m.x;p.ry=m.y;p.rds=1/m.spmm;
+  auswerten(p);spaeterAktualisieren();
+  return true;
+}
+async function rohAblegen(sit,nr){
+  const key=rohSchluessel(sit,nr),p=sitId===sit?pressen.get(nr):null;
+  const alt=await dbHolen("kurve",key);
+  if(alt&&alt.n===roh.n){if(p)rohAnwenden(p,alt);return;}   // schon gespeichert (z. B. Seite neu geladen)
+  const daten=new Uint8Array(roh.n*8);
+  let o=0;for(const t of roh.teile){daten.set(t,o);o+=t.length;}
+  const zeit=p&&p.k.zeit?p.k.zeit:Math.floor(Date.now()/1000);
+  const r={sit,nr,n:roh.n,zeit,t0:roh.t0,startSchritt:roh.start,spmm:roh.spmm,fa:roh.fa,sps:roh.sps,daten:daten.buffer};
+  const kv=schrittKurve(r);
+  const m={sit,nr,n:r.n,zeit,sps:r.sps,spmm:r.spmm,x:kv.x,y:kv.y};
+  roh.teile=[];
+  if(!await dbAblegen([["roh",key,r],["kurve",key,m]]))logText("# Browser: Rohdaten konnten nicht gespeichert werden (IndexedDB)\n");
+  const q=sitId===sit?pressen.get(nr):null;                  // Kopf evtl. erst jetzt geladen
+  if(q)rohAnwenden(q,m);
+}
+// Proben der laufenden bzw. letzten Pressung abholen (während der Pressung alle 100 ms)
+async function rohHolen(){
+  if(rohHolt)return;
+  rohHolt=true;
+  try{
+    for(;;){
+      const r=await fetch("/presse/roh?id="+roh.id+"&ab="+roh.n,{cache:"no-store"});
+      if(!r.ok)break;
+      const b=await r.arrayBuffer();
+      if(b.byteLength<48)break;
+      const dv=new DataView(b);
+      if(dv.getUint32(0,true)!==ROH_MAGIC)break;
+      const id=dv.getUint32(4,true),ab=dv.getUint32(8,true),n=dv.getUint32(12,true),ges=dv.getUint32(16,true);
+      if(id!==roh.id)roh={id,n:0,luecke:false,teile:[],fertig:false,ende:false};
+      if(ab!==roh.n){roh.luecke=true;roh.teile=[];}             // Proben dazwischen überschrieben
+      Object.assign(roh,{t0:dv.getUint32(20,true),start:dv.getInt32(24,true),spmm:dv.getFloat32(28,true),
+        fa:dv.getFloat32(32,true),sps:dv.getFloat32(44,true)});
+      if(n&&!roh.luecke)roh.teile.push(new Uint8Array(b.slice(48,48+n*8)));
+      roh.n=ab+n;
+      if(roh.n<ges)continue;                                    // Rest sofort holen
+      const lauf=dv.getUint8(38),nr=dv.getUint32(40,true),sit=dv.getUint16(36,true);
+      if(!lauf){
+        if(nr&&!roh.luecke&&!roh.fertig){roh.fertig=true;await rohAblegen(sit,nr);}
+        roh.teile=[];roh.ende=true;
+        break;
+      }
+      await new Promise(res=>setTimeout(res,100));
+    }
+  }catch(e){}
+  finally{rohHolt=false;}
+}
+function herunterladen(text,name){
+  const blob=new Blob(["﻿"+text],{type:"text/csv;charset=utf-8"});
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);link.download=name;
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(link.href),5000);
+}
+async function rohCsv(p){
+  const r=await dbHolen("roh",rohSchluessel(sitId,p.k.nr));
+  if(!r){logText("# Browser: keine Rohdaten für Pressung "+p.k.nr+" gefunden\n");return;}
+  const d=rohDekodieren(r),z=(v,n)=>v.toFixed(n).replace(".",",");
+  const zeilen=["Sitzung;"+sitId+";"+sitName,"Pressung;"+p.k.nr,"Datenrate [SPS];"+z(r.sps,0),"Schritte/mm;"+z(r.spmm,3),"",
+    "Zeit [s];Weg [mm];Kraft ["+E.n+"];Phase"];
+  for(let i=0;i<r.n;i++)zeilen.push(z(d.t[i],6)+";"+z(d.schritt[i]/r.spmm,5)+";"+z(d.F[i]*E.f,E.d+2)+";"+(d.halt[i]?"Halten":"Drücken"));
+  herunterladen(zeilen.join("\r\n"),"sitzung_"+String(sitId).padStart(4,"0")+"_pressung_"+String(p.k.nr).padStart(4,"0")+"_roh.csv");
+}
+
 // ---------- Auswertung einer Pressung (Kräfte in N, Wege in mm ab Kontakt) ----------
 function interp(s,f,x){
   if(!s.length||x<s[0]||x>s[s.length-1])return NaN;
@@ -318,23 +468,39 @@ function interp(s,f,x){
   while(hi-lo>1){const m=(lo+hi)>>1;if(s[m]<=x)lo=m;else hi=m;}
   return s[hi]===s[lo]?f[lo]:f[lo]+(f[hi]-f[lo])*(x-s[lo])/(s[hi]-s[lo]);
 }
+// gleitendes Mittel über eine Wegbreite b (s aufsteigend)
+function gleit(s,f,b){
+  const n=s.length,o=new Float64Array(n);
+  let lo=0,hi=0,sum=0;
+  for(let i=0;i<n;i++){
+    while(hi<n&&s[hi]<=s[i]+b/2){sum+=f[hi];hi++;}
+    while(s[lo]<s[i]-b/2){sum-=f[lo];lo++;}
+    o[i]=sum/(hi-lo);
+  }
+  return o;
+}
 function auswerten(p){
   const k=p.k,a={};
   p.a=a;
-  if(!p.x||!k.kontakt||!isFinite(k.kontaktMm)||!isFinite(k.endMm))return;
-  const s=[],f=[];
-  for(let i=0;i<p.x.length;i++){
-    if(!isFinite(p.y[i]))continue;
-    const w=p.x[i]-k.kontaktMm;
-    if(w>=0){s.push(w);f.push(p.y[i]);}
+  const X=p.rx||p.x,Y=p.ry||p.y;                         // Rohkurve (je Motorschritt), sonst Pico-Kurve
+  if(!X||!k.kontakt||!isFinite(k.kontaktMm)||!isFinite(k.endMm))return;
+  const s=[],fr=[];
+  for(let i=0;i<X.length;i++){
+    if(!isFinite(Y[i]))continue;
+    const w=X[i]-k.kontaktMm;
+    if(w>=0){s.push(w);fr.push(Y[i]);}
   }
   if(s.length<5)return;
+  // Rohkurve auf die Breite eines Pico-Abschnitts mitteln: Kennwerte bleiben mit Pico-Kurven vergleichbar,
+  // die Wege (Fügekraft, Spitze, Abfall) werden genauer
+  const f=p.rx?gleit(s,fr,k.d):fr;
   const L=(k.endMm-AW.ende)-k.kontaktMm;                 // Fügetiefe (ohne Anschlag)
   a.L=L;
   if(!(L>0))return;
-  const ds=Math.max(k.d,1e-4);
-  // geglättet (gleitendes Mittel über 5 Punkte) für Spitze und Abfall
-  const g=f.map((_,i)=>{let sum=0,n=0;for(let j=Math.max(0,i-2);j<=Math.min(f.length-1,i+2);j++){sum+=f[j];n++;}return sum/n;});
+  const ds=p.rx?p.rds:Math.max(k.d,1e-4);
+  // geglättet (gleitendes Mittel über 5 Pico-Abschnitte) für Spitze und Abfall
+  const g=p.rx?gleit(s,fr,5*k.d):
+    f.map((_,i)=>{let sum=0,n=0;for(let j=Math.max(0,i-2);j<=Math.min(f.length-1,i+2);j++){sum+=f[j];n++;}return sum/n;});
   // Fügekraft: Maximum bis vor den Anschlag
   let fm=-Infinity,sm=NaN;
   for(let i=0;i<s.length&&s[i]<=L;i++)if(f[i]>fm){fm=f[i];sm=s[i];}
@@ -445,6 +611,7 @@ function verarbeiten(d){
   live.lauf=p.lauf;live.s=p.s;live.d=p.d;
   if(p.ab===live.n){for(const v of p.p)live.y.push(v===null?NaN:v*STUFE);live.n=live.y.length;}
   if(p.lauf||p.p.length)neuZeichnen=true;
+  if(d.roh&&(d.roh.id!==roh.id||d.roh.n>roh.n||p.lauf||!roh.ende))rohHolen();
   const id=d.sit?d.sit.id:0;
   sitName=d.sit?d.sit.name:"";
   if(id!==sitId){sitzungLaden(id);listeLaden();}
@@ -500,7 +667,7 @@ function tabelle(){
     const k=p.k,a=p.a;
     const st=(STATUS[k.status]||"?")+(k.sim?' (Sim.)':'');
     h+='<tr data-nr="'+k.nr+'"'+(k.nr===auswahl?' class="sel"':'')+'><td><input type="checkbox" title="Kurve anzeigen"'+
-      (versteckt.has(k.nr)?'':' checked')+'></td><td>'+k.nr+'</td><td>'+(k.zeit?new Date(k.zeit*1000).toLocaleTimeString("de-DE"):"–")+
+      (versteckt.has(k.nr)?'':' checked')+'></td><td>'+k.nr+(p.rx?' <span class="ok" title="Rohdaten (jeder Messwert) in diesem Browser">R</span>':'')+'</td><td>'+(k.zeit?new Date(k.zeit*1000).toLocaleTimeString("de-DE"):"–")+
       '</td><td><b>'+fmt(kr(a.fuegeN),E.d)+'</b></td><td>'+fmt(kr(a.spitzeN),E.d)+'</td><td>'+fmt(kr(a.steigung),E.d)+
       '</td><td>'+fmt(kr(a.laufruhe),E.d+1)+'</td><td'+(a.riss?' class="warn"':'')+'>'+fmt(a.abfallPct,1)+(a.riss?' ⚠':'')+
       '</td><td>'+fmt(kr(k.fendN),E.d)+'</td><td'+(k.status?' class="warn"':'')+'>'+st+'</td></tr>';
@@ -544,8 +711,11 @@ function details(){
     zeile("arbeit")+zeile("zeit")+'<dt>Zykluszeit</dt><dd>'+fmt(k.zykluszeitS,1)+' s</dd>'+
     '<dt>Ende durch</dt><dd>'+(GRUND[k.grund]||"?")+'</dd>'+
     '<dt>Proben</dt><dd>'+k.proben+' bei '+fmt(k.sps,0)+' SPS'+(k.verloren?' <span class="warn">('+k.verloren+' verloren)</span>':'')+'</dd>'+
+    '<dt>Kurve</dt><dd>'+(p.rx?'Rohdaten: '+p.rx.length+' Punkte, 1 Schritt = '+fmt(p.rds*1000,1)+' µm <button id="rohCsv">Rohdaten CSV</button>':
+      'Pico: '+(p.x?p.x.length:0)+' Punkte à '+fmt(k.d*1000,0)+' µm')+'</dd>'+
     '<dt>Einstellungen</dt><dd>'+fmt(k.vPress,2)+' mm/s, Haltezeit '+k.haltMs+' ms</dd>';
   $("details").innerHTML=h;
+  if($("rohCsv"))$("rohCsv").onclick=()=>rohCsv(p);
 }
 
 // ---------- Diagramm Kraft über Weg ----------
@@ -637,7 +807,8 @@ function zeichnen(){
   }
   if(a&&a.x&&isFinite(versatz(a))){
     const off=versatz(a),ok=a.k.kontaktMm||0,sx=v=>X(v+ok-off);   // sx: Weg ab Kontakt -> Pixel
-    linie(a.x,a.y,off,"#ffffff",2.4,false);
+    const ax=a.rx||a.x,ay=a.ry||a.y;                                  // Auswahl in voller Auflösung
+    linie(ax,ay,off,"#ffffff",2.4,false);
     const aa=a.a;
     if(isFinite(aa.steigung)){                                       // Plateau-Gerade
       ctx.strokeStyle=st.getPropertyValue("--akzent");ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();
@@ -650,7 +821,7 @@ function zeichnen(){
       ctx.beginPath();ctx.moveTo(px,py-9);ctx.lineTo(px-5,py-2);ctx.lineTo(px+5,py-2);ctx.closePath();ctx.fill();}
     if(aa.abfallN>0&&isFinite(aa.abfallMm)){                         // ✕ am Beginn des größten Kraftabfalls
       let fy=NaN;
-      for(let i=0;i<a.x.length;i++)if(isFinite(a.y[i])&&a.x[i]-ok>=aa.abfallMm){fy=a.y[i];break;}
+      for(let i=0;i<ax.length;i++)if(isFinite(ay[i])&&ax[i]-ok>=aa.abfallMm){fy=ay[i];break;}
       if(isFinite(fy)){const px=sx(aa.abfallMm),qy=Y(fy*E.f);
         ctx.strokeStyle=aa.riss?st.getPropertyValue("--fehler"):"#ffffff";ctx.lineWidth=2;
         ctx.beginPath();ctx.moveTo(px-5,qy-5);ctx.lineTo(px+5,qy+5);ctx.moveTo(px+5,qy-5);ctx.lineTo(px-5,qy+5);ctx.stroke();}
@@ -812,6 +983,61 @@ $("neu").onclick=async()=>{
   if(await aktion({a:"neu",name,notiz:$("neuNotiz").value.trim()})){$("neuName").value="";$("neuNotiz").value="";}
 };
 $("schliessen").onclick=()=>aktion({a:"zu"});
+
+// ---------- Simulationsfenster: Parameter des Kraftmodells (Pico: nur RAM, Browser merkt sie sich) ----------
+// [Feld, Parameter, Pico-Einheit je Anzeigeeinheit, Stellen]
+const SIMFELD=[["sWerkzeug","werkzeug",1,1],["sWeg","weg",1,2],["sFmin","fmin",1000,1],["sFmax","fmax",1000,1],
+  ["sRauschen","rauschen",1,0],["sRiss","riss",1,1],["sSpitze","spitze",1,0]];
+const SIM_STANDARD={werkzeug:15,weg:3,fmin:25000,fmax:35000,rauschen:30,riss:8.3,spitze:12};
+async function simSenden(w){                                  // nur geänderte Werte schicken (Pico-Einheiten)
+  const ist=S&&S.simp?S.simp:{};
+  for(const [,k] of SIMFELD){
+    if(!isFinite(w[k]))continue;
+    if(isFinite(ist[k])&&Math.abs(ist[k]-w[k])<1e-3)continue;
+    await befehl("sim "+k+" "+w[k]);
+  }
+}
+function simWerte(){                                          // Werte aus dem Fenster (Pico-Einheiten)
+  const w={};
+  for(const [id,k,f] of SIMFELD){const v=parseFloat(String($(id).value).replace(",","."));if(isFinite(v))w[k]=Math.round(v*f*1000)/1000;}
+  return w;
+}
+function simFuellen(w){
+  for(const [id,k,f,d] of SIMFELD)if(isFinite(w[k]))$(id).value=+(w[k]/f).toFixed(d);
+  if(S)$("sVpress").value=S.par.vpress;
+  simInfo();
+}
+function simInfo(){
+  if(!S){$("simInfo").textContent="";return;}
+  const w=simWerte(),v=parseFloat(String($("sVpress").value).replace(",","."))||S.par.vpress,an=S.par.anfahrt;
+  const dauer=(an+0.05)/v,proben=dauer*S.rate;
+  let t="Pressweg "+fmt(an,2)+" mm (Anfahrpunkt, max. "+fmt(S.simp?S.simp.wegmax:5,1)+" mm) → ca. "+fmt(dauer,1)+" s und "+
+    fmt(proben,0)+" Messwerte bei "+fmt(S.rate,0)+" SPS.";
+  if(w.weg>an*0.98)t+=" Hinweis: Fügeweg größer als der Anfahrpunkt – das Werkstück wird auf "+fmt(an*0.98,2)+" mm gekürzt.";
+  if(w.fmax>S.par.fmax/0.00980665)t+=" Hinweis: Spitzenkraft über der Maximalkraft – die Pressung endet früh.";
+  $("simInfo").textContent=t;
+}
+$("simOeffnen").onclick=()=>{
+  // laufende Simulation: Werte vom Pico (die gelten); sonst die im Browser gemerkten
+  const ls=lsLesen("wz_sim",null);
+  simFuellen(Object.assign({},SIM_STANDARD,S&&S.simp?S.simp:{},S&&S.sim?{}:(ls||{})));
+  $("simDlg").showModal();
+};
+$("simDlg").addEventListener("input",simInfo);
+$("simStandard").onclick=()=>simFuellen(SIM_STANDARD);
+$("simZu").onclick=()=>$("simDlg").close();
+$("simSetzen").onclick=async()=>{
+  const w=simWerte();
+  lsSchreiben("wz_sim",w);
+  await simSenden(w);
+  const v=parseFloat(String($("sVpress").value).replace(",","."));
+  if(isFinite(v)&&S&&Math.abs(v-S.par.vpress)>1e-4)await befehl("mp vpress "+v);
+  $("simDlg").close();
+};
+$("sim").onchange=async e=>{
+  if(e.target.checked){const ls=lsLesen("wz_sim",null);if(ls)await simSenden(ls);befehl("sim an");}
+  else befehl("sim aus");
+};
 
 // ---------- Parameter ----------
 function parameterZeigen(){

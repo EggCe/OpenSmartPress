@@ -46,12 +46,26 @@ static float    ende[ENDE_N], halt[ENDE_N];
 static uint8_t  endeN = 0, endeI = 0, haltN = 0, haltI = 0, mittelN = 20;
 static uint32_t proben = 0;
 
+// ----- Rohdaten für den Browser -----
+static RohProbe roh[ROH_N];
+static uint32_t rohId = 0, rohAnzahl = 0, rohT0 = 0, rohNr = 0;
+static uint16_t rohSit = 0;
+static float    rohSps = 0.0f;
+
 bool presseLaeuft() { return aktiv; }
 uint16_t          presseLiveAnzahl()  { return punktAnzahl; }
 const PressPunkt *presseLivePunkte()  { return punkte; }
 float             presseLiveStartMm() { return (startSchritt + 0.5f * abschnittSchritte) / spmm; }
 float             presseLivePunktMm() { return abschnittSchritte / spmm; }
 uint32_t          presseLiveId()      { return liveId; }
+const RohProbe   *presseRohPuffer()   { return roh; }
+
+RohInfo presseRohInfo() {
+  RohInfo r;
+  r.id = rohId; r.anzahl = rohAnzahl; r.t0 = rohT0; r.startSchritt = startSchritt;
+  r.spmm = spmm; r.fa = fa; r.sps = rohSps; r.nr = rohNr; r.sit = rohSit; r.lauf = aktiv;
+  return r;
+}
 
 // ===========================================================================
 // Voraussetzungen
@@ -105,6 +119,7 @@ bool presseStarten(const char *quelle) {
   ersteProbe = true; kontakt = false; wf.reset();
   fMaxGesamt = -1e9f; arbeitNmm = 0.0; endeN = endeI = haltN = haltI = 0; proben = 0;
   mittelN = (uint8_t)constrain(lroundf(ads.sampleRate() * 0.01f), 1L, (long)ENDE_N);   // ca. 10 ms
+  rohId++; rohAnzahl = 0; rohNr = 0; rohSit = 0; rohSps = ads.sampleRate();
 
   if (!antriebSenden(antrieb::BefehlTyp::PRESSEN, 0)) return false;
   aktiv = true;
@@ -139,7 +154,21 @@ static void abschnittAbschliessen() {
   aktN = 0;
 }
 
+// Probe kompakt in den Rohdatenpuffer (der Browser holt ihn über /presse/roh ab)
+static void rohAufnehmen(const antrieb::Probe &p) {
+  if (rohAnzahl == 0) rohT0 = p.tMikros;
+  RohProbe &r = roh[rohAnzahl & (ROH_N - 1)];
+  r.t4 = (uint16_t)(p.tMikros >> 2);
+  const int32_t l = constrain(p.last, -0x800000L, 0x7FFFFFL);
+  r.last[0] = (uint8_t)l; r.last[1] = (uint8_t)(l >> 8); r.last[2] = (uint8_t)(l >> 16);
+  const int32_t d = constrain(p.position - startSchritt, -0x400000L, 0x3FFFFFL);
+  const uint32_t w = ((uint32_t)d & 0x7FFFFFu) | (p.phase == antrieb::PHASE_HALTEN ? 0x800000u : 0u);
+  r.pos[0] = (uint8_t)w; r.pos[1] = (uint8_t)(w >> 8); r.pos[2] = (uint8_t)(w >> 16);
+  rohAnzahl++;
+}
+
 static void probeVerarbeiten(const antrieb::Probe &p) {
+  rohAufnehmen(p);
   const float f = (float)p.last / fa * N_PRO_GRAMM;   // Kraft in N
   proben++;
   if (ersteProbe) { ersteProbe = false; t0Us = p.tMikros; letzterSchritt = p.position; }
@@ -243,6 +272,7 @@ static void presseAbschliessen(PressStatus status, antrieb::Stopp grund, int32_t
   k.haltMs     = pres.haltMs;
 
   const bool gespeichert = sitzungPresseSpeichern(k, punkte, punktAnzahl);
+  if (gespeichert) { rohNr = k.nr; rohSit = sitzungAktiv(); }
   const unsigned long nr = gespeichert ? (unsigned long)k.nr : 0UL;
   if (status == PRESS_OK) {
     meld.printf("# Pressung %lu: Fmax %.1f N bei %.3f mm, Fend %.1f N, Kontakt %s, Tiefe %.3f mm, "

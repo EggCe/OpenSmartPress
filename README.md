@@ -12,7 +12,7 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 - **Dauerbetrieb des ADS1256** (RDATAC) mit DRDY-Interrupt auf einem eigenen Prozessorkern, SPI mit 1,9 MHz,
   Ringpuffer für 4096 Messwerte. Verlorene Werte werden gezählt und angezeigt.
 - **Weboberfläche** direkt vom Pico: Gewichtsanzeige, Live-Diagramm Zeit/Gewicht mit Min/Max-Band,
-  Live-Statistik, Protokoll und Befehlszeile. Dazu eine Hilfeseite mit Erklärungen und Einstelltipps.
+  Live-Statistik, Protokoll und Befehlszeile. Erklärungen und Einstelltipps stehen in [help.md](help.md).
 - **Glättung** als gleitender Mittelwert über eine frei wählbare Zeit (0–60 s), unabhängig von der Datenrate.
 - **Tara und Kalibrierung** mit Plausibilitätsprüfung (Empfindlichkeit in mV/V, Unsicherheit des Faktors).
 - **Rauschanalyse**: Standardabweichung in Counts, µV und Gramm, effektive und rauschfreie Auflösung,
@@ -103,10 +103,10 @@ Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des
 |---|---|
 | `http://waegezelle.local/presse` | **Pressseite** (Produktion): Ablauf, Kraft-Weg-Diagramm, Kennwerte, Sitzungen |
 | `http://waegezelle.local/` | Messseite (Service): Gewicht, Diagramm, Statistik, Protokoll, Befehle |
-| `http://waegezelle.local/info` | Hilfe: alle Regler und Kennzahlen erklärt, Einstelltipps, Kalibrierablauf |
 
 Funktioniert `waegezelle.local` nicht, die IP-Adresse aus dem seriellen Monitor verwenden. Die Seiten liegen
-im Flash des Pico und brauchen kein Internet.
+im Flash des Pico und brauchen kein Internet. Der Knopf „Hilfe“ öffnet [help.md](help.md) auf GitHub (dafür ist
+Internet nötig): alle Regler und Kennzahlen erklärt, Einstelltipps, Kalibrierablauf.
 
 **Empfohlene Grundeinstellung zum Wiegen:** 2000 SPS, Glättung 0,5 s, Statistik 2–5 s.
 
@@ -172,7 +172,8 @@ Auf der Pressseite `http://waegezelle.local/presse`:
 2. **Hub kalibrieren** (ohne Werkstück, nach jedem Einschalten nötig): Werkzeug-Endpunkt = Weg 0, dazu der
    tatsächliche Endpunkt (Kontakt + `ueber` Schritte bzw. `fmax`).
 3. **Sitzung wählen oder anlegen.**
-4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): Eilgang bis `anfahrt` mm über dem
+4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): Eilgang bis `anfahrt` mm (Standard 5,
+   höchstens 10 mm; der Weg ist durch eine Anschlagschraube am Presskopf begrenzt) über dem
    Werkzeug-Endpunkt, mit `vpress` bis zum **kalibrierten Endpunkt** (früher bei `fmax`), `halt` ms halten, zurück.
 
 Jede Pressung wird als Kurve **Kraft über Weg** gezeichnet und sofort im Flash gespeichert (ca. 200 Pressungen).
@@ -191,12 +192,22 @@ In der Simulation haben die Kurven eine Einführspitze, und etwa jede zwölfte P
 Die **Krafteinheit** ist über dem Diagramm wählbar (**N, kg, lbs**) und gilt für Diagramm, Kennwerte, Statistik und
 den CSV-Export; der Browser merkt sich die Wahl. Gespeichert wird immer in N, der JSON-Export bleibt in N.
 
+**Auflösung der Kurve:** Der Pico speichert höchstens 960 Wegabschnitte über den Pressweg (Kraft je Abschnitt
+gemittelt). Ist die Pressseite während der Pressung offen, holt der Browser zusätzlich **jeden einzelnen Messwert**
+(`GET /presse/roh`, alle 100 ms; Puffer im Pico 4096 Werte ≈ 2 s bei 2000 SPS) und speichert ihn in seiner
+IndexedDB. Daraus entsteht eine Kurve mit einem Punkt je Motorschritt (z. B. 3,1 µm bei 320 Schritten/mm), die für
+die ausgewählte Kurve, die Auswertung und den Download „Rohdaten CSV“ (Zeit, Weg, Kraft, Phase inkl. Haltezeit)
+benutzt wird. Pressungen mit Rohdaten sind in der Tabelle mit **R** markiert. Ohne Rohdaten (Seite war zu,
+WLAN-Lücke länger als der Puffer, anderer Browser) gilt die Pico-Kurve. Details in [help.md](help.md#auflösung-der-kurve).
+
 **Simulation ohne Motor:** `sim an` (oder Schalter auf der Pressseite). Die Schrittimpulse laufen ins Leere, die
-Position zählt trotzdem; die Kraft wird aus der Position berechnet: ein virtuelles Werkzeug 15 mm unter der
-aktuellen Position und je Pressung ein virtuelles Werkstück (ca. 3 mm hoch) mit zufälliger Spitzenkraft
-**zwischen 25 und 35 kg** plus Rauschen. ADC und Wägezelle müssen angeschlossen sein (sie geben den Takt vor),
+Position zählt trotzdem; die Kraft wird aus der Position berechnet: ein virtuelles Werkzeug (Standard 15 mm unter
+der aktuellen Position) und je Pressung ein virtuelles Werkstück (Standard 3 mm hoch) mit zufälliger Spitzenkraft
+(Standard **25–35 kg**) plus Rauschen. Alle Werte (Pressgeschwindigkeit, Werkzeugabstand, Fügeweg, Kraftbereich,
+Rauschen, Rissquote, Einführspitze) lassen sich im Fenster **„Parameter …“** neben dem Schalter einstellen oder mit
+`sim par` / `sim <name> <wert>`; der Browser merkt sie sich, der Pico nur bis zum Neustart. ADC und Wägezelle müssen angeschlossen sein (sie geben den Takt vor),
 `mp spmm` muss gesetzt sein, eine Kalibrierung der Waage ist nicht nötig. Danach wie gewohnt Hub kalibrieren und
-pressen; tipp: `mp anfahrt 5` verkürzt die Fahrt. Simulierte Pressungen sind in Tabelle und Export markiert. Die
+pressen. Simulierte Pressungen sind in Tabelle und Export markiert. Die
 Simulation ist nach jedem Neustart aus.
 
 Voraussetzungen für START: ADC misst mit mindestens 500 SPS, Waage kalibriert, Hub seit dem Einschalten kalibriert,
@@ -206,10 +217,11 @@ Sitzung aktiv, genug Speicher, Antrieb steht über dem Endpunkt. Fehlt etwas, ne
 |---|---|
 | `pr` / `pr x` | Pressung starten / abbrechen |
 | `sim an` / `sim aus` | Simulation ohne Motor (siehe unten) |
+| `sim par` / `sim <name> <wert>` | Simulationsparameter: `werkzeug weg fmin fmax rauschen riss spitze` |
 | `sit` | Sitzungen und Speicherbelegung anzeigen |
 | `sit neu <Name>` / `sit wahl <Nr>` / `sit zu` | Sitzung anlegen / öffnen / schließen |
 | `sit loeschen <Nr> ja` | Sitzung löschen |
-| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt, Pressgeschwindigkeit, Haltezeit (danach `s`) |
+| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt (0–10 mm, Standard 5), Pressgeschwindigkeit, Haltezeit (danach `s`) |
 
 ### Aufzeichnung am PC über USB
 
@@ -278,7 +290,7 @@ Waegezelle_Test/
 │       ├── webserver.*        HTTP-Routen, JSON für /daten
 │       ├── presse_web.cpp     Routen der Pressseite, Sitzungen, Export
 │       ├── livedaten.*        Diagrammpunkte und Live-Statistik
-│       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webinfo.h (Hilfe), webstil.h
+│       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webstil.h
 ├── tools/waegezelle_plot.py   PC-Programm für Live-Anzeige und Aufzeichnung über USB
 └── docs/                      Verdrahtungsplan
 ```
@@ -310,7 +322,8 @@ Gramm = (Counts − tara) / faktor
 |---|---|
 | `GET /daten?p=<punkt>&l=<log>` | JSON: Konfiguration, Diagrammpunkte (Zeit, Mittel, Min, Max, geglättet), Statistik, neue Protokollzeilen |
 | `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus |
-| `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, neue Protokollzeilen |
+| `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, Rohdatenstand, neue Protokollzeilen |
+| `GET /presse/roh?id=&ab=` | binär: jede Probe der laufenden/letzten Pressung ab Probe `ab` (Kopf 48 Byte + 8 Byte je Probe, Format in `src/web/presse_web.cpp` und `src/presse.h`) |
 | `GET /sitzungen` | JSON: alle Sitzungen und Speicherbelegung |
 | `GET /sitzung/index?id=` / `GET /sitzung/presse?id=&nr=` | binär: Köpfe aller Pressungen / eine Pressung (Format in `src/sitzungen.h`) |
 | `GET /sitzung/export?id=&f=csv\|json` | Export zum Herunterladen |

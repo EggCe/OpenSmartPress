@@ -38,6 +38,12 @@ constexpr float    WARNGRENZE_G   = 50000.0f;   // 100 % Nennlast
 constexpr float    ALARMGRENZE_G  = 60000.0f;   // 120 % (sichere Überlast)
 constexpr float    WARN_HYSTERESE = 0.98f;      // Rückfall erst unter 98 % der Grenze
 
+// Pressweg: eine Anschlagschraube am Presskopf begrenzt den Weg des Werkstücks (ca. 5 mm). Gepresst
+// (und aufgezeichnet) wird höchstens so weit über dem kalibrierten Werkzeug-Endpunkt (mit Reserve);
+// darüber Eilgang. Standard für 'mp anfahrt' ist PRESSWEG_STANDARD_MM.
+constexpr float    PRESSWEG_MAX_MM      = 10.0f;
+constexpr float    PRESSWEG_STANDARD_MM = 5.0f;
+
 // Startwert für den Kalibrierfaktor, solange nicht kalibriert wurde:
 // 1,5 mV/V * 5 V = 7,5 mV bei 50 kg; 1 Count = 9,313 nV  ->  ca. 16,1 Counts/g
 constexpr float STANDARD_FAKTOR = 16.1f;

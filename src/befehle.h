@@ -2,7 +2,7 @@
  * befehle.h - Textbefehle aus dem seriellen Monitor und von POST /cmd
  *
  * Neue Befehle in verarbeiteBefehl() eintragen und in zeigeHilfe(), README.md und
- * web/seiten/webinfo.h dokumentieren.
+ * help.md dokumentieren.
  */
 #pragma once
 

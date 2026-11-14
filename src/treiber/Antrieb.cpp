@@ -92,7 +92,6 @@ static volatile uint8_t   aufzeichnungPhase = 0;         // 0 = aus, sonst PHASE
 
 // Simulation (Kern 1; Modell wird im ADC-Interrupt gelesen)
 static const float SIM_WERKZEUG_G_PRO_SCHRITT = 20.0f;   // Steifigkeit des virtuellen Werkzeugs
-static const float SIM_RAUSCHEN_G             = 30.0f;   // Rauschen ca. +-30 g
 static int32_t     simWerkzeug = 0;                      // Position der Werkzeugoberkante (Schritte)
 static int32_t     simOben = 0;                          // Oberkante des Werkstücks
 static float       simInvWeg = 1.0f;                     // 1 / (simWerkzeug - simOben)
@@ -167,7 +166,7 @@ static int32_t simLast() {
     float s = 0.35f * x + 0.65f * (1.0f - r * r);
     // Einführspitze an der Fase (bei 8 % des Wegs, glatter Buckel)
     const float b = (x - 0.08f) * (1.0f / 0.06f);
-    if (b > -1.0f && b < 1.0f) { const float q = 1.0f - b * b; s += 0.12f * q * q; }
+    if (b > -1.0f && b < 1.0f) { const float q = 1.0f - b * b; s += P.simSpitze * q * q; }
     // kleine, glatte Reibungs-Welligkeit (Dreieck, Periode 64 Schritte), am Ende 0
     const float dreieck = 1.0f - (float)abs((int)(p & 63) - 32) * (1.0f / 16.0f);
     s += 0.004f * r * dreieck;
@@ -176,18 +175,20 @@ static int32_t simLast() {
     g += simFspitze * s;
   }
   if (p > simWerkzeug) g += SIM_WERKZEUG_G_PRO_SCHRITT * (float)(p - simWerkzeug);
-  g += SIM_RAUSCHEN_G * (simZufallF() + simZufallF() - 1.0f);
+  g += P.simRauschenG * (simZufallF() + simZufallF() - 1.0f);
   return (int32_t)lroundf(g * P.countsProGramm);
 }
 
 // Neues virtuelles Werkstück mit etwas anderer Höhe und zufälliger Spitzenkraft
 static void simWerkstueckEinlegen() {
-  const float hoehe = P.simHoeheMm * P.schritteProMm * (0.97f + 0.06f * simZufallF());
+  float hoehe = P.simHoeheMm * P.schritteProMm * (0.97f + 0.06f * simZufallF());
+  // nie über den Anfahrpunkt hinaus, sonst stößt der Eilgang schon auf das Werkstück
+  if (P.presseAnfahrt < 0 && hoehe > -0.98f * (float)P.presseAnfahrt) hoehe = -0.98f * (float)P.presseAnfahrt;
   float fmax = P.simFmaxG - 500.0f;                      // Platz für Werkzeugkontakt (ca. 16 Schritte) und Rauschen
   if (fmax < P.simFminG) fmax = P.simFminG;
   const float fspitze = P.simFminG + (fmax - P.simFminG) * simZufallF();
-  // etwa jede zwölfte Pressung bekommt einen Riss zwischen 30 und 80 % des Wegs
-  const float riss = (simZufallF() < 1.0f / 12.0f) ? 0.3f + 0.5f * simZufallF() : 2.0f;
+  // ein Anteil simRissAnteil der Pressungen bekommt einen Riss zwischen 30 und 80 % des Wegs
+  const float riss = (simZufallF() < P.simRissAnteil) ? 0.3f + 0.5f * simZufallF() : 2.0f;
   const uint32_t irq = save_and_disable_interrupts();
   simRissX = riss;
   simOben = simWerkzeug - (int32_t)lroundf(hoehe < 1.0f ? 1.0f : hoehe);
@@ -199,7 +200,8 @@ static void simWerkstueckEinlegen() {
 
 // Parameter übernehmen (nur im Stillstand)
 static void parameterUebernehmen(const Param &neu) {
-  const bool simStart = neu.simulation && !P.simulation;
+  // Simulation eingeschaltet oder Werkzeugabstand geändert: virtuelles Werkzeug neu setzen
+  const bool simStart = neu.simulation && (!P.simulation || neu.simWerkzeugMm != P.simWerkzeugMm);
   const uint32_t irq = save_and_disable_interrupts();    // ISR liest tara/maxCounts
   if (simStart) {                                        // virtuelles Werkzeug unter der aktuellen Position
     simWerkzeug = pos + (int32_t)lroundf(neu.simWerkzeugMm * neu.schritteProMm);

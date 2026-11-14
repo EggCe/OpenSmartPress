@@ -84,7 +84,7 @@ void presseStandard() {
   memset(&pres, 0, sizeof(pres));
   pres.magic     = PRESSE_MAGIC;
   pres.version   = PRESSE_VERSION;
-  pres.anfahrtMm = 45.0f;            // ganzer Hub: kein Eilgang, alles mit Pressgeschwindigkeit
+  pres.anfahrtMm = PRESSWEG_STANDARD_MM;   // 5 mm pressen, darüber Eilgang (einstellbar bis PRESSWEG_MAX_MM)
   pres.vPressMmS = 1.0f;
   pres.haltMs    = 0;
 }
@@ -97,7 +97,10 @@ static bool ladePresse() {
             isfinite(e.anfahrtMm) && e.anfahrtMm >= 0.0f && e.anfahrtMm <= 45.0f &&
             isfinite(e.vPressMmS) && e.vPressMmS >= 0.01f && e.vPressMmS <= 20.0f &&
             e.haltMs <= 60000;
-  if (ok) memcpy(&pres, &e, sizeof(pres));
+  if (ok) {
+    memcpy(&pres, &e, sizeof(pres));
+    if (pres.anfahrtMm > PRESSWEG_MAX_MM) pres.anfahrtMm = PRESSWEG_MAX_MM;   // alte Werte (bis 45 mm) begrenzen
+  }
   return ok;
 }
 

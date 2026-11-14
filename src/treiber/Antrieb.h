@@ -60,6 +60,9 @@ struct Param {
   float    simHoeheMm     = 3.0f;  // virtuelles Werkstück steht so weit über dem Werkzeug
   float    simFminG       = 25000.0f;   // Spitzenkraft je Pressung zufällig zwischen min und max
   float    simFmaxG       = 35000.0f;
+  float    simRauschenG   = 30.0f;      // Rauschen ca. +- so viel Gramm
+  float    simRissAnteil  = 1.0f / 12.0f;   // Anteil der Pressungen mit Riss (0..1)
+  float    simSpitze      = 0.12f;      // Einführspitze als Anteil der Spitzenkraft (0 = keine)
 };
 
 enum class Zustand : uint8_t {

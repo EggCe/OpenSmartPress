@@ -1,7 +1,7 @@
 /*
  * webstil.h - gemeinsames Stylesheet der Weboberflaeche (/stil.css)
  * Dunkles Design mit Neongruen. Wird von der Messseite (webui.h) und der
- * Hilfeseite (webinfo.h) benutzt.
+ * Pressseite (presse.h) benutzt.
  */
 #pragma once
 
@@ -95,37 +95,4 @@ a:hover{text-decoration:underline}
 a.chip{color:var(--text);font-weight:600}
 a.chip:hover{border-color:var(--akzent);box-shadow:0 0 12px rgba(58,226,58,.22);text-decoration:none}
 
-/* Hilfeseite */
-main.info{max-width:1040px}
-.info h2{font-size:clamp(22px,3.2vw,30px);line-height:1.2;margin:2px 0 8px;font-weight:800;letter-spacing:-.4px;text-wrap:balance}
-.info h2 em{color:var(--akzent);font-style:italic}
-.info h3{font-size:16px;margin:18px 0 6px;font-weight:700;color:var(--text)}
-.info h3:first-of-type{margin-top:4px}
-.info p,.info li{max-width:72ch;color:#d5dfd5}
-.info p{margin:6px 0}
-.info ul,.info ol{margin:6px 0;padding-left:22px;display:grid;gap:4px}
-.info strong{color:var(--text)}
-.info code,.info kbd{font:12.5px/1.3 ui-monospace,"Cascadia Mono",Consolas,monospace;background:#030503;
-border:1px solid var(--rand2);border-radius:6px;padding:1px 6px;color:#d8f5d8;white-space:nowrap}
-.inhalt{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.tabelle{overflow-x:auto;margin-top:6px}
-.tabelle table{min-width:560px}
-.tabelle td{text-align:left;vertical-align:top;color:#d5dfd5}
-.tabelle td:first-child{white-space:nowrap;color:var(--text);font-weight:600}
-.tabelle th{text-align:left}
-.tabelle td.zahl,.tabelle th.zahl{text-align:right;white-space:nowrap}
-.fluss{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin-top:8px}
-.fluss > div{flex:1 1 160px;background:var(--bg2);border:1px solid var(--rand2);border-radius:12px;padding:9px 11px;font-size:13px;color:var(--leise)}
-.fluss b{display:block;color:var(--text);font-size:14px;margin-bottom:2px}
-.fluss .pfeil{flex:0 0 auto;align-self:center;border:0;background:none;padding:0;color:var(--akzent);font-weight:800}
-.kennzahl{display:grid;grid-template-columns:minmax(150px,210px) 1fr;gap:4px 16px;padding:10px 0;border-bottom:1px solid var(--rand)}
-.kennzahl:last-child{border-bottom:0}
-.kennzahl dt{font-weight:700;color:var(--text)}
-.kennzahl dd{margin:0;display:grid;gap:4px}
-.kennzahl dd p{margin:0}
-@media (max-width:640px){.kennzahl{grid-template-columns:1fr}.fluss .pfeil{display:none}}
-.raster{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
-.raster .karte{margin-top:0}
-.hinweis{border-left:3px solid var(--warn);padding:6px 12px;background:rgba(255,176,32,.06);border-radius:0 10px 10px 0;margin:10px 0}
-.fuss{color:var(--leise);font-size:12px;margin-top:18px;text-align:center}
 )WEBSTIL";

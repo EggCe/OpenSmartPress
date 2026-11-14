@@ -21,7 +21,7 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
   <div class="kopfrechts">
     <div class="status" id="status">verbinde …</div>
     <a class="chip" href="/presse">Pressen</a>
-    <a class="chip" href="/info">Hilfe &amp; Tipps</a>
+    <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md" target="_blank" rel="noopener">Hilfe</a>
   </div>
 </header>
 

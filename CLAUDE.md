@@ -9,7 +9,8 @@ Nema-23 closed-loop stepper (HB808C driver), and runs a production press process
 force-over-path curve with statistics, stored in sessions on the Pico's flash, and shown/exported via a web UI over WLAN.
 `README.md` is the authoritative user documentation (wiring, commands, data formats, file layout); keep it in sync when
 commands, pins, HTTP endpoints, the USB protocol or the file structure change. New commands also go into
-`zeigeHilfe()` in `src/befehle.cpp` and the command table in `src/web/seiten/webinfo.h`.
+`zeigeHilfe()` in `src/befehle.cpp` and the command table in `help.md` (user help, linked from the web UI's
+"Hilfe" button via GitHub; there is no help page on the Pico anymore).
 
 **Language:** All identifiers, comments, serial/web messages and docs are German. Write new code, comments and UI text
 in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`).
@@ -28,8 +29,8 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   ```
   ~/bin/arduino-cli compile --fqbn rp2040:rp2040:rpipicow:flash=2097152_1048576 --warnings all .
   ```
-  Must build without warnings. Reference size: ~553 KB of 1 MB flash, ~192 KB static RAM (~70 KB left for heap/stack —
-  watch this when adding buffers). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
+  Must build without compiler warnings. Reference size: ~561 KB of 1 MB flash, ~225 KB static RAM (~37 KB left for
+  heap/stack — the IDE's generic "low memory" notice above 75 % is expected; do not add more big buffers). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
 - No automated tests. Functional verification is on hardware via the serial monitor (newline line ending; `h` = help,
   `i` = status) or the web UI at `http://waegezelle.local/`.
 - PC tool: `python tools/waegezelle_plot.py [--port COM5] [--rate 2000] [--fenster 10]` (pyserial, numpy, pyqtgraph,
@@ -71,10 +72,21 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   responses call `hintergrund()` (feed watchdog, drain samples). JSON helpers `jsonStart/jsonf/jsonEnde` live in
   `webserver.cpp`. The START button (GP6) starts a press; calibration only via web/`mot kal`.
 - **Simulation** (`sim an`, RAM only): `Param::simulation` makes `messwertIsr()` replace the measured load with a
-  model (`simLast()` in `Antrieb.cpp`: virtual tool + per-press workpiece, peak 25–35 kg, noise). Step pulses still
+  model (`simLast()` in `Antrieb.cpp`: virtual tool + per-press workpiece, peak force range, noise, crack rate,
+  insertion peak). Model parameters live in `SimEinst` (`motor.cpp`, RAM only, `sim <name> <wert>`), go to core 1 in
+  `Param::sim*`, are reported as `simp` in `/presse/status`, and the press page's "Parameter …" dialog remembers them
+  in localStorage and re-sends them on `sim an`. Step pulses still
   run, so the whole state machine is exercised without a motor; the ADC still clocks the samples. Saved presses carry
   `PressKopf::simuliert`.
-- Settings block `PresseEinst` (EEPROM address 128): `anfahrt`, `vpress`, `halt` via `mp`.
+- **Raw press data for the browser**: `probeVerarbeiten()` also packs every sample into `roh[ROH_N]` (`RohProbe`,
+  8 B: t in 4 µs, load int24, position 23 bit + hold bit; 32 KB). `GET /presse/roh` serves it (48-byte header, see
+  `presse_web.cpp`); `presse.h` (web page) polls it during a press, stores raw samples + a per-step curve in IndexedDB
+  and prefers that curve when `n === PressKopf::proben`. Analysis smooths raw curves to the Pico segment width so
+  statistics stay comparable. Format changes must be made in `presse.cpp`, `presse_web.cpp` and the page together.
+- Settings block `PresseEinst` (EEPROM address 128): `anfahrt`, `vpress`, `halt` via `mp`. The workpiece path is
+  limited mechanically (stop screw on the press head): `anfahrt` is capped to `PRESSWEG_MAX_MM` (10 mm = ~5 mm
+  screw path + reserve, default `PRESSWEG_STANDARD_MM` 5 mm, `konfig.h`), older stored values are clamped on load,
+  so the recorded press path is at most 10 mm above the tool endpoint.
 
 ### Module conventions
 - Module state is `static` inside its `.cpp`; other modules use functions. Exceptions (shared via `extern`): `ads`,

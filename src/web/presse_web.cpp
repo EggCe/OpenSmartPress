@@ -3,6 +3,7 @@
  *
  *   GET  /presse                    Pressseite (seiten/presse.h)
  *   GET  /presse/status?ab=&id=&l=  JSON: Bereitschaft, Antrieb, Sitzung, Live-Kurve ab Punkt ab, neue Log-Zeilen ab l
+ *   GET  /presse/roh?id=&ab=        binär: Rohdaten der laufenden/letzten Pressung ab Probe ab (Kopf 48 Byte + RohProbe je 8 Byte)
  *   GET  /sitzungen                 JSON: alle Sitzungen, Speicherbelegung
  *   GET  /sitzung/index?id=         binär: PressKopf je Pressung (128 Byte)
  *   GET  /sitzung/presse?id=&nr=    binär: PressKopf + Punkte
@@ -82,6 +83,13 @@ static void webPresseStatus() {
   jsonZahl("vfahrt", mot.vFahrtMmS, 2);
   jsonZahl("spmm", mot.schritteProMm, 3, false);
   jsonf("},");
+  {
+    const SimEinst &se = motorSimEinst();
+    jsonf("\"simp\":{\"werkzeug\":%.2f,\"weg\":%.2f,\"fmin\":%.0f,\"fmax\":%.0f,\"rauschen\":%.0f,\"riss\":%.1f,"
+          "\"spitze\":%.1f,\"wegmax\":%.1f},",
+          (double)se.werkzeugMm, (double)se.wegMm, (double)se.fminG, (double)se.fmaxG, (double)se.rauschenG,
+          (double)se.rissProzent, (double)se.spitzeProzent, (double)PRESSWEG_MAX_MM);
+  }
 
   if (sitzungAktiv()) {
     const SitzungMeta &m = sitzungAktivMeta();
@@ -99,6 +107,8 @@ static void webPresseStatus() {
   if (!srv->hasArg("id") || strtoul(srv->arg("id").c_str(), nullptr, 10) != id) ab = 0;
   const uint16_t n = presseLiveAnzahl();
   if (ab > n) ab = 0;
+  const RohInfo ri = presseRohInfo();
+  jsonf("\"roh\":{\"id\":%lu,\"n\":%lu},", (unsigned long)ri.id, (unsigned long)ri.anzahl);
   jsonf("\"pr\":{\"lauf\":%u,\"id\":%lu,", presseLaeuft() ? 1u : 0u, (unsigned long)id);
   jsonZahl("s", presseLiveStartMm(), 5);
   jsonZahl("d", presseLivePunktMm(), 6);
@@ -121,6 +131,41 @@ static void webPresseStatus() {
   for (uint32_t i = lab; i < lbis; i++) jsonZeichen(webLog[i & (WEBLOG_GROESSE - 1)]);
   jsonf("\"}");
   jsonEnde();
+}
+
+// Rohdaten: jede Probe der laufenden bzw. letzten Pressung. Kopf (48 Byte, little-endian):
+//   0 magic "ROH1" | 4 id | 8 ab | 12 n | 16 gesamt | 20 t0 [µs] | 24 startSchritt (i32) | 28 spmm (f32)
+//   32 |Faktor| (f32) | 36 Sitzung (u16) | 38 läuft (u8) | 39 frei | 40 Pressnummer (0 = nicht gespeichert)
+//   44 SPS (f32), danach n x RohProbe. ab > angefragt heißt: Proben dazwischen sind überschrieben.
+static constexpr uint32_t ROH_MAGIC = 0x31484F52UL;   // "ROH1"
+static constexpr uint32_t ROH_MAX_ANTWORT = 2048;     // 16 KB je Antwort
+
+static void webPresseRoh() {
+  const RohInfo r = presseRohInfo();
+  uint32_t ab = srv->hasArg("ab") ? strtoul(srv->arg("ab").c_str(), nullptr, 10) : 0;
+  if (!srv->hasArg("id") || strtoul(srv->arg("id").c_str(), nullptr, 10) != r.id) ab = 0;
+  if (ab > r.anzahl) ab = 0;
+  if (r.anzahl - ab > ROH_N) ab = r.anzahl - ROH_N;
+  uint32_t n = r.anzahl - ab;
+  if (n > ROH_MAX_ANTWORT) n = ROH_MAX_ANTWORT;
+
+  uint8_t k[48];
+  memset(k, 0, sizeof(k));
+  auto u32 = [&](size_t o, uint32_t v) { memcpy(k + o, &v, 4); };
+  auto f32 = [&](size_t o, float v) { memcpy(k + o, &v, 4); };
+  u32(0, ROH_MAGIC); u32(4, r.id); u32(8, ab); u32(12, n); u32(16, r.anzahl); u32(20, r.t0);
+  u32(24, (uint32_t)r.startSchritt); f32(28, r.spmm); f32(32, r.fa);
+  memcpy(k + 36, &r.sit, 2); k[38] = r.lauf ? 1 : 0; u32(40, r.nr); f32(44, r.sps);
+
+  srv->sendHeader("Cache-Control", "no-store");
+  srv->setContentLength(sizeof(k) + n * sizeof(RohProbe));
+  srv->send(200, "application/octet-stream", "");
+  srv->sendContent((const char *)k, sizeof(k));
+  const RohProbe *p = presseRohPuffer();
+  const uint32_t i = ab & (ROH_N - 1);
+  const uint32_t erst = min(n, ROH_N - i);                 // bis zum Pufferende, Rest von vorn
+  if (erst) srv->sendContent((const char *)&p[i], erst * sizeof(RohProbe));
+  if (n > erst) srv->sendContent((const char *)p, (n - erst) * sizeof(RohProbe));
 }
 
 // ===========================================================================
@@ -355,6 +400,7 @@ void presseWebRouten() {
   srv = &webServer();
   srv->on("/presse", HTTP_GET, webPresseSeite);
   srv->on("/presse/status", HTTP_GET, webPresseStatus);
+  srv->on("/presse/roh", HTTP_GET, webPresseRoh);
   srv->on("/sitzungen", HTTP_GET, webSitzungen);
   srv->on("/sitzung/index", HTTP_GET, webSitzungIndex);
   srv->on("/sitzung/presse", HTTP_GET, webEinzelpresse);

@@ -234,13 +234,23 @@ uint16_t sitzungNeu(const char *name, const char *notiz) {
 
   char p[32];
   snprintf(p, sizeof(p), "/s/%04u", id);
-  const bool ok = LittleFS.mkdir(p) && metaSchreiben(m);
+  // Elternordner fehlt (z. B. Dateisystem neu formatiert) oder Ordner existiert schon: kein Fehler
+  if (!LittleFS.exists("/s")) LittleFS.mkdir("/s");
+  const bool ordnerOk = LittleFS.mkdir(p) || LittleFS.exists(p);
+  const bool ok = ordnerOk && metaSchreiben(m);
   if (ok) {
     aktivId = id; aktivMeta = m; aktivAnzahl = 0;
     aktivSpeichern();
   }
   nachSchreiben();
-  if (!ok) { meld.println(F("# FEHLER: Sitzung konnte nicht angelegt werden.")); return 0; }
+  if (!ok) {
+    uint32_t b, g;
+    speicherBelegung(b, g);
+    meld.printf("# FEHLER: Sitzung %u konnte nicht angelegt werden (%s). Speicher %lu/%lu KB, freier Heap %lu Byte.\n",
+                id, ordnerOk ? "meta.bin nicht schreibbar" : "Ordner nicht anlegbar", (unsigned long)(b / 1024),
+                (unsigned long)(g / 1024), (unsigned long)rp2040.getFreeHeap());
+    return 0;
+  }
   meld.printf("# Sitzung %u '%s' angelegt und aktiv.\n", id, m.name);
   return id;
 }
