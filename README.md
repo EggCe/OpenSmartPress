@@ -128,6 +128,23 @@ Datenrate, Rauschtests, Waage kalibrieren (Dialog), Speichern, Tippbetrieb, Simu
 unten eine STOPP-Leiste; Antworten und Fehler des Pico erscheinen kurz unten rechts; ohne Verbindung sperrt ein
 roter Balken die Befehlsknöpfe (außer STOPP).
 
+**Pressseite – Ablauf und Kraft-Weg-Diagramm** (hier in der Simulation, ausgerichtet ab Kontakt, mit
+Plateaufenster, Plateau-Gerade und einer Pressung mit Rissverdacht):
+
+![Pressseite: Ablauf und Kraft-Weg-Diagramm](docs/press-view.png)
+
+**Pressseite – Kennwerte der ausgewählten Pressung und Liste aller Pressungen der Sitzung:**
+
+![Pressseite: Kennwerte und Pressungen](docs/stats-view.png)
+
+**Pressseite – Trend eines Kennwerts mit ±3σ, Auswertungseinstellungen, Sitzungsstatistik und Sitzungen:**
+
+![Pressseite: Trend, Auswertung und Sitzungsstatistik](docs/trend-view.png)
+
+**Messseite – Gewicht, Steuerung, Verlauf Zeit/Gewicht mit Min/Max-Band und Antrieb:**
+
+![Messseite: Gewicht, Verlauf und Antrieb](docs/weight-view.png)
+
 **Empfohlene Grundeinstellung zum Wiegen:** 2000 SPS, Glättung 0,5 s, Statistik 2–5 s.
 
 ### Erste Schritte
