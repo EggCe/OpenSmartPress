@@ -12,6 +12,10 @@ commands, pins, HTTP endpoints, the USB protocol or the file structure change. N
 `zeigeHilfe()` in `src/befehle.cpp` and the command table in `help.md` (user help, linked from the web UI's
 "Hilfe" button via GitHub; there is no help page on the Pico anymore).
 
+**Hardware data:** datasheet values of the parts (load cell accuracy, overload limits, excitation range, …) and what
+they mean for this setup are in `docs/hardware.md`. Read it before changing limits in `src/konfig.h`, force
+thresholds or accuracy claims; add new parts' datasheets there.
+
 **Language:** All identifiers, comments, serial/web messages and docs are German. Write new code, comments and UI text
 in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`).
 
