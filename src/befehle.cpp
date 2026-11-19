@@ -9,6 +9,7 @@
 #include "auftraege.h"
 #include "usb_ausgabe.h"
 #include "motor.h"
+#include "geber.h"
 #include "watchdog.h"
 #include "presse.h"
 #include "sitzungen.h"
@@ -55,6 +56,7 @@ static void zeigeHilfe() {
   meld.println(F("#      mot null|ein|aus   Position 0 setzen / Motorstrom ein / aus"));
   meld.println(F("#      mot stop           anhalten (auch 'x' und STOPP-Taster)"));
   meld.println(F("#      mp [name wert]     Antrieb- und Press-Parameter anzeigen bzw. setzen (anfahrt, vpress, halt ...)"));
+  meld.println(F("#      enc [0|aus]        Encoder-Test: EA+/EB+ ueber Teiler an GP10/GP11 mitzaehlen"));
   meld.println(F("#      wlan [an|aus]      WLAN-Status bzw. ein-/ausschalten"));
   meld.println(F("#                         ('wlan aus' fuer Rauschmessungen ohne Funk; danach nur per USB wieder an)"));
   meld.println(F("#      wd                 Watchdog-Status, Grund des letzten Neustarts, Stapelbelegung"));
@@ -162,6 +164,7 @@ void verarbeiteBefehl(char *text) {
   }
   if (strcmp(cmd, "mot") == 0) { motorBefehl(a1, a2); return; }
   if (strcmp(cmd, "mp") == 0)  { motorParameter(a1, a2); return; }
+  if (strcmp(cmd, "enc") == 0) { geberBefehl(a1); return; }
   if (ist(cmd, "m", "modus")) {    // auch während eines Auftrags erlaubt
     long m = -1;
     if (a1) {

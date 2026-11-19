@@ -12,12 +12,24 @@ commands, pins, HTTP endpoints, the USB protocol or the file structure change. N
 `zeigeHilfe()` in `src/befehle.cpp` and the command table in `help.md` (user help, linked from the web UI's
 "Hilfe" button via GitHub; there is no help page on the Pico anymore).
 
+**Bilingual docs and UI:** `README.md`, `help.md` and `docs/hardware.md` are German; `README.en.md`, `help.en.md` and
+`docs/hardware.en.md` are their English translations — every change to one must be made to the other (same structure;
+the press page links `help.en.md#pressing`, `README.en.md` links `help.en.md#curve-resolution`). The web UI is written
+in German; `src/web/seiten/sprache.h` (served as `/sprache.js`) translates it in the browser (DE/EN switch,
+localStorage `wz_sprache`): static text/`title`/`placeholder` via the `WOERTER` dictionary (key = German text with
+collapsed whitespace), strings built in JS via `T("… {0} …", v)`, firmware strings (`zustandText`, `stoppText`,
+`presseBereit` reasons) via `TF()`; numbers/dates via `LOC()`, never a hard-coded `"de-DE"`. New UI text needs a
+`WOERTER` entry (must stay valid JSON); `python tools/sprache_pruefen.py` (run in CI) reports missing ones. New
+firmware texts shown in the UI go into `WOERTER` (and `DE_TEXT` for umlauts) by hand. Don't name a local variable
+`T`, `TF`, `LOC` or `SPR` in page scripts. Serial/log messages, commands and `/sitzung/export` stay German.
+
 **Hardware data:** datasheet values of the parts (load cell accuracy, overload limits, excitation range, …) and what
 they mean for this setup are in `docs/hardware.md`. Read it before changing limits in `src/konfig.h`, force
 thresholds or accuracy claims; add new parts' datasheets there.
 
-**Language:** All identifiers, comments, serial/web messages and docs are German. Write new code, comments and UI text
-in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`).
+**Language:** All identifiers, comments, serial messages and the primary docs are German. Write new code, comments and
+UI text in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`), then add the English
+translation (see "Bilingual docs and UI" above).
 
 ## Build / run
 
@@ -33,7 +45,7 @@ in German in the same style (e.g. `Einstellungen`, `verarbeiteBefehl`, `Auftrag`
   ```
   ~/bin/arduino-cli compile --fqbn rp2040:rp2040:rpipicow:flash=2097152_1048576 --warnings all .
   ```
-  Must build without compiler warnings. Reference size: ~598 KB of 1 MB flash, ~219 KB static RAM (~43 KB left for
+  Must build without compiler warnings. Reference size: ~627 KB of 1 MB flash, ~219 KB static RAM (~43 KB left for
   heap/stack — the IDE's generic "low memory" notice above 75 % is expected; do not add more big buffers; CI fails
   above 224 000 bytes; `wd` shows both cores' stack high-water marks). Upload: same FQBN with `upload -p COMx` (or the Arduino IDE).
 - Host tests: `sh tests/host/run.sh` (g++; on this Windows machine `wsl -e sh tests/host/run.sh`). They cover the

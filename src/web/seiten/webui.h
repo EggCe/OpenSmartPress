@@ -4,6 +4,9 @@
  * Der Browser fragt 4x pro Sekunde /daten ab (JSON: Graphpunkte, Statistik,
  * Konfiguration, neue Log-Zeilen) und schickt Befehle per POST an /cmd.
  * Die Umrechnung Counts -> Gramm/µV passiert im Browser mit den Werten aus "cfg".
+ *
+ * Sprache: deutsche Texte stehen hier, /sprache.js (sprache.h) übersetzt sie ins Englische
+ * (statischer Text beim Start, Texte aus dem Skript über T()).
  */
 #pragma once
 
@@ -13,7 +16,8 @@ static const char WEBUI_HTML[] = R"WEBUI(<!doctype html>
 <title>Wägezelle</title>
 <link rel="stylesheet" href="/stil.css">
 <script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";
-document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus")||'"bedienen"');}catch(e){document.documentElement.dataset.modus="bedienen";}</script></head><body>
+document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus")||'"bedienen"');}catch(e){document.documentElement.dataset.modus="bedienen";}</script>
+<script src="/sprache.js"></script></head><body>
 <div class="banner offline" id="offlineBanner" role="alert" hidden>Keine Verbindung zum Pico – Befehle sind gesperrt, die Seite verbindet sich von selbst neu.</div>
 <main>
 <header>
@@ -24,10 +28,11 @@ document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus
   </div>
   <div class="kopfrechts">
     <div class="modus" title="Bedienen: nur was für die Produktion nötig ist · Einrichten: alle Einstellungen, Diagnose, Protokoll"><button data-m="bedienen">Bedienen</button><button data-m="einrichten">Einrichten</button></div>
+    <div class="sprachwahl" title="Sprache / Language"><button data-l="de">DE</button><button data-l="en">EN</button></div>
     <div class="themen" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div>
     <div class="status" id="status">verbinde …</div>
     <a class="chip" href="/presse">Pressen</a>
-    <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md" target="_blank" rel="noopener">Hilfe</a>
+    <a class="chip" href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md" data-href-en="https://github.com/EggCe/OpenSmartPress/blob/main/help.en.md" target="_blank" rel="noopener">Hilfe</a>
   </div>
 </header>
 
@@ -41,7 +46,7 @@ document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus
     <div class="titel">Steuerung</div>
     <div class="leiste">
       <label class="einr">Datenrate <select id="rate"></select></label>
-      <label>Anzeige <select id="einheit"><option>Gramm</option><option>µV</option><option>Counts</option></select></label>
+      <label>Anzeige <select id="einheit"><option value="Gramm">Gramm</option><option value="µV">µV</option><option value="Counts">Counts</option></select></label>
       <label>Fenster [s] <input type="number" id="fenster" value="10" min="1" max="600" step="1"></label>
       <label class="einr">Glättung <select id="fl"><option value="0">aus</option><option value="0.02">0,02 s</option>
         <option value="0.05">0,05 s</option><option value="0.1">0,1 s</option><option value="0.2">0,2 s</option>
@@ -167,7 +172,7 @@ function flAngleichen(s){
   if(document.activeElement===selFl)return;
   const v=String(s);
   if(![...selFl.options].some(o=>o.value===v)){
-    const o=document.createElement("option");o.value=v;o.textContent=v.replace(".",",")+" s";selFl.appendChild(o);
+    const o=document.createElement("option");o.value=v;o.textContent=Number(v).toLocaleString(LOC())+" s";selFl.appendChild(o);
   }
   selFl.value=v;
 }
@@ -232,6 +237,7 @@ function meldung(text,art){
   while(box.children.length>4)box.firstChild.remove();
   setTimeout(()=>el.remove(),art==="fehler"?9000:art==="warn"?6000:4000);
 }
+// Die Firmware meldet auf Deutsch: die Muster prüfen die Originaltexte
 const RM_FEHLER=/FEHLER|ALARM|Sensorfehler|Ungueltig|Unbekannt/i;
 const RM_WARN=/abgebrochen|abgelehnt|verweigert|nicht |erst |kein|zuerst|Hinweis|Warn|faehrt/i;
 let logGeladen=false;                                         // erste Antwort = alter Verlauf: keine Meldungen
@@ -247,14 +253,14 @@ function rueckmeldung(zeilen){
   }
   const zeig=l.length>3?l.slice(0,2):l;
   for(const [t,art] of zeig)meldung(t,art);
-  if(l.length>3)meldung("… "+(l.length-2)+" weitere Zeilen im Protokoll","");
+  if(l.length>3)meldung(T("… {0} weitere Zeilen im Protokoll",l.length-2),"");
 }
 async function befehl(c){
   rmBis=Date.now()+3500;
   try{const r=await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});
-    if(!r.ok)meldung("Befehl „"+c+"“ abgelehnt (HTTP "+r.status+")","fehler");}
-  catch(e){meldung("Befehl „"+c+"“ nicht gesendet – keine Verbindung","fehler");
-    logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
+    if(!r.ok)meldung(T("Befehl „{0}“ abgelehnt (HTTP {1})",c,r.status),"fehler");}
+  catch(e){meldung(T("Befehl „{0}“ nicht gesendet – keine Verbindung",c),"fehler");
+    logText(T("# Browser: Befehl '{0}' konnte nicht gesendet werden",c)+"\n");}
 }
 
 // ---------- Log ----------
@@ -283,8 +289,8 @@ function umrechnen(c){
   return c;
 }
 function einheitKurz(){return {"Gramm":"g","µV":"µV","Counts":"Counts"}[$("einheit").value];}
-const f=(v,d)=>Number(v).toLocaleString("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false});
-const de=v=>Math.round(v).toLocaleString("de-DE");
+const f=(v,d)=>Number(v).toLocaleString(LOC(),{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false});
+const de=v=>Math.round(v).toLocaleString(LOC());
 
 // ---------- Abfrage ----------
 async function abfragen(){
@@ -308,11 +314,11 @@ function leistenZeigen(){
   $("offlineBanner").hidden=!off;document.body.classList.toggle("offline",off);
   const m=letzt&&letzt.mot,faehrt=!off&&!!m&&!!m.lauf;
   $("stoppleiste").hidden=!faehrt;document.body.classList.toggle("faehrt",faehrt);
-  if(faehrt)$("stoppText").textContent=(Z_TEXT[m.z]||m.z)+(m.ok?" · "+f(m.pos/m.spmm,2)+" mm":"");
+  if(faehrt)$("stoppText").textContent=TF(m.z)+(m.ok?" · "+f(m.pos/m.spmm,2)+" mm":"");
 }
 setInterval(leistenZeigen,500);
 function verarbeiten(d){
-  if(pn!==null&&d.pn<pn){P=[];logText("# Browser: Pico wurde neu gestartet\n");}
+  if(pn!==null&&d.pn<pn){P=[];logText(T("# Browser: Pico wurde neu gestartet")+"\n");}
   cfg=d.cfg;letzt=d;
   for(const p of d.p)P.push(p);
   pn=d.pn;
@@ -345,10 +351,10 @@ function kalZeigen(){
   }
   $("k1").classList.toggle("ok",kalTaraOk);
   $("k2").classList.toggle("ok",kalOk);
-  $("kalLauf").textContent=kalWarten?(kalWarten.art==="tara"?"Tara läuft …":"Kalibrierung läuft … Gewicht nicht berühren"):" ";
-  $("kalErg").innerHTML=kalOk?"Neuer Faktor <b>"+f(cfg.faktor,5)+"</b> Counts/g · Anzeige jetzt <b>"+f(umrechnenG(letzt.w),1)+
-    " g</b>. Details (Empfindlichkeit, Unsicherheit) im Protokoll.":
-    (cfg&&cfg.kal?"Aktueller Faktor "+f(cfg.faktor,5)+" Counts/g":"Noch nicht kalibriert (Schätzwert)");
+  $("kalLauf").textContent=kalWarten?(kalWarten.art==="tara"?T("Tara läuft …"):T("Kalibrierung läuft … Gewicht nicht berühren")):" ";
+  $("kalErg").innerHTML=kalOk?T("Neuer Faktor <b>{0}</b> Counts/g · Anzeige jetzt <b>{1} g</b>. Details (Empfindlichkeit, Unsicherheit) im Protokoll.",
+    f(cfg.faktor,5),f(umrechnenG(letzt.w),1)):
+    (cfg&&cfg.kal?T("Aktueller Faktor {0} Counts/g",f(cfg.faktor,5)):T("Noch nicht kalibriert (Schätzwert)"));
   for(const id of ["kalTara","kalStart","kalSpeichern"])$(id).disabled=!!kalWarten||!!letzt.auftrag;
 }
 const umrechnenG=c=>(c-cfg.tara)/cfg.faktor;
@@ -357,7 +363,7 @@ $("kalTara").onclick=()=>kalAuftrag("tara","t");
 $("kalStart").onclick=()=>{
   const g=parseFloat(String($("kalG").value).replace(",","."));
   if(!(g>0)){$("kalG").focus();return;}
-  if(!kalTaraOk&&!confirm("Ohne Tara im Dialog kalibrieren? Der aktuelle Nullpunkt wird verwendet."))return;
+  if(!kalTaraOk&&!confirm(T("Ohne Tara im Dialog kalibrieren? Der aktuelle Nullpunkt wird verwendet.")))return;
   kalAuftrag("kal","k "+g);
 };
 $("kalSpeichern").onclick=()=>{befehl("s");$("k3").classList.add("ok");};
@@ -365,47 +371,46 @@ $("kalZu").onclick=()=>$("kalDlg").close();
 if(location.hash==="#kalibrieren")setTimeout(()=>$("kalOeffnen").click(),0);   // Link von der Pressseite
 
 // ---------- Antrieb ----------
-const Z_TEXT={"Ueberlauf":"Überlauf","Rueckfahrt":"Rückfahrt"};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")befehl("x");});   // Esc = STOPP
 // Während der Antrieb fährt nicht neu laden oder wegnavigieren (der Pico liefert dann nur eine Warteseite)
 window.addEventListener("beforeunload",e=>{if(online&&letzt&&letzt.mot&&letzt.mot.lauf){e.preventDefault();e.returnValue="";}});
 function motZeigen(){
   const m=letzt&&letzt.mot;if(!m)return;
-  const z=Z_TEXT[m.z]||m.z;
+  const z=TF(m.z);
   let h='<span class="chip"><span class="punkt'+(m.alm?" aus":"")+'"></span>'+z+"</span>";
-  if(m.alm)h+='<span class="chip warn"><span class="warn">ALARM Treiber</span></span>';
-  if(!m.ok)h+='<span class="chip warn"><span class="warn">nicht eingerichtet</span></span>';
-  if(m.enam&&!m.ena)h+='<span class="chip warn"><span class="warn">Motorstrom aus</span></span>';
-  h+='<span class="chip">Last <b>'+f(m.last/1000,2)+"</b>kg</span>";
+  if(m.alm)h+='<span class="chip warn"><span class="warn">'+T("ALARM Treiber")+'</span></span>';
+  if(!m.ok)h+='<span class="chip warn"><span class="warn">'+T("nicht eingerichtet")+'</span></span>';
+  if(m.enam&&!m.ena)h+='<span class="chip warn"><span class="warn">'+T("Motorstrom aus")+'</span></span>';
+  h+='<span class="chip">'+T("Last")+' <b>'+f(m.last/1000,2)+"</b>kg</span>";
   $("motStatus").innerHTML=h;
   if(m.ok){
-    $("motPos").textContent=f(m.pos/m.spmm,3).replace(".",",")+" mm";
-    $("motPosSub").textContent=m.pos+" Schritte · "+(m.ref?"ab Werkzeug-Endpunkt":"relativ, noch nicht kalibriert")+
-      (m.stopp&&m.stopp!=="-"?" · letzter Stopp: "+m.stopp:"");
+    $("motPos").textContent=f(m.pos/m.spmm,3)+" mm";
+    $("motPosSub").textContent=T("{0} Schritte",m.pos)+" · "+(m.ref?T("ab Werkzeug-Endpunkt"):T("relativ, noch nicht kalibriert"))+
+      (m.stopp&&m.stopp!=="-"?" · "+T("letzter Stopp:")+" "+TF(m.stopp):"");
   }else{
     $("motPos").textContent="–";
-    $("motPosSub").textContent="Zuerst Schritte pro mm einstellen: mp spmm <Wert>";
+    $("motPosSub").textContent=T("Zuerst Schritte pro mm einstellen: mp spmm <Wert>");
   }
   $("motKal").innerHTML=m.kal?
-    "Kontakt "+f(m.kt/m.spmm,3).replace(".",",")+" mm unter dem Start<br>Endpunkt <b>+"+m.ke+" Schritte</b> bei <b>"+
-    f(m.kk/1000,2).replace(".",",")+" kg</b> ("+(m.kgr===2?"Maximalkraft erreicht":"Überlauf erreicht")+")":"noch keine";
-  $("motParam").textContent="Suche "+m.vs+" mm/s · Kontakt ab "+m.kg+" g Laständerung · Überlauf "+m.ue+
-    " Schritte · max. "+f(m.fmax/1000,1)+" kg · Hub "+m.hub+" mm";
+    T("Kontakt {0} mm unter dem Start",f(m.kt/m.spmm,3))+"<br>"+T("Endpunkt <b>+{0} Schritte</b> bei <b>{1} kg</b>",m.ke,f(m.kk/1000,2))+
+    " ("+(m.kgr===2?T("Maximalkraft erreicht"):T("Überlauf erreicht"))+")":T("noch keine");
+  $("motParam").textContent=T("Suche {0} mm/s · Kontakt ab {1} g Laständerung · Überlauf {2} Schritte · max. {3} kg · Hub {4} mm",
+    m.vs,m.kg,m.ue,f(m.fmax/1000,1),m.hub);
   document.querySelectorAll('#antriebKarte button[data-c^="mot"]').forEach(b=>{b.disabled=!!m.lauf||!m.ok;});
 }
 
 // ---------- Anzeigen ----------
 function statusZeigen(){
   const s=$("status");
-  if(!online||!letzt){s.innerHTML='<span class="chip warn"><span class="punkt aus"></span>keine Verbindung zum Pico</span>';return;}
+  if(!online||!letzt){s.innerHTML='<span class="chip warn"><span class="punkt aus"></span>'+T("keine Verbindung zum Pico")+'</span>';return;}
   const d=letzt;
-  const zustand=d.ok?(d.kont?'<span class="punkt"></span>misst':'<span class="punkt aus"></span>ADC angehalten')
-                     :'<span class="punkt aus"></span>ADC nicht initialisiert';
+  const zustand=d.ok?(d.kont?'<span class="punkt"></span>'+T("misst"):'<span class="punkt aus"></span>'+T("ADC angehalten"))
+                     :'<span class="punkt aus"></span>'+T("ADC nicht initialisiert");
   let h='<span class="chip">'+zustand+'</span>'+
         '<span class="chip"><b>'+cfg.rate+'</b>SPS</span>'+
         '<span class="chip">WLAN <b>'+d.rssi+'</b>dBm</span>'+
-        '<span class="chip">verloren <b>'+d.verl+'</b></span>';
-  if(d.auftrag)h+='<span class="chip warn"><span class="warn">Auftrag läuft</span></span>';
+        '<span class="chip">'+T("verloren")+' <b>'+d.verl+'</b></span>';
+  if(d.auftrag)h+='<span class="chip warn"><span class="warn">'+T("Auftrag läuft")+'</span></span>';
   s.innerHTML=h;
 }
 function wertZeigen(){
@@ -415,29 +420,29 @@ function wertZeigen(){
   $("wert").textContent=f(v,dez);
   $("wertEinh").textContent=einheitKurz();
   let sub=e==="Gramm"?"= "+f(v/1000,3)+" kg":"";
-  if(!cfg.kal)sub+=' <span class="warn">(Faktor unkalibriert)</span>';
-  sub+=cfg.filter>0?" · geglättet über "+f(cfg.filter_ist,3).replace(".",",")+" s":" · ungeglättet";
+  if(!cfg.kal)sub+=' <span class="warn">('+T("Faktor unkalibriert")+')</span>';
+  sub+=" · "+(cfg.filter>0?T("geglättet über {0} s",f(cfg.filter_ist,3)):T("ungeglättet"));
   $("wertSub").innerHTML=sub;
 }
 function statZeigen(){
   if(!st||!cfg)return;
   const uv=cfg.uv,fa=Math.abs(cfg.faktor)||1,g=c=>(c-cfg.tara)/cfg.faktor;
-  let h="<b>Statistik über "+de(st.n)+" Werte ("+f(st.n/cfg.rate,2)+" s, ungefiltert)</b>"+
+  let h="<b>"+T("Statistik über {0} Werte ({1} s, ungefiltert)",de(st.n),f(st.n/cfg.rate,2))+"</b>"+
     "<table><tr><th></th><th>Counts</th><th>µV</th><th>g</th></tr>"+
-    "<tr><td>Mittelwert</td><td>"+f(st.mittel,1)+"</td><td>"+f(st.mittel*uv,3)+"</td><td>"+f(g(st.mittel),3)+"</td></tr>"+
-    "<tr><td>Std.-Abw. σ</td><td>"+f(st.sigma,3)+"</td><td>"+f(st.sigma*uv,4)+"</td><td>"+f(st.sigma/fa,4)+"</td></tr>"+
-    "<tr><td>Spitze-Spitze</td><td>"+f(st.pp,0)+"</td><td>"+f(st.pp*uv,3)+"</td><td>"+f(st.pp/fa,3)+"</td></tr>";
+    "<tr><td>"+T("Mittelwert")+"</td><td>"+f(st.mittel,1)+"</td><td>"+f(st.mittel*uv,3)+"</td><td>"+f(g(st.mittel),3)+"</td></tr>"+
+    "<tr><td>"+T("Std.-Abw. σ")+"</td><td>"+f(st.sigma,3)+"</td><td>"+f(st.sigma*uv,4)+"</td><td>"+f(st.sigma/fa,4)+"</td></tr>"+
+    "<tr><td>"+T("Spitze-Spitze")+"</td><td>"+f(st.pp,0)+"</td><td>"+f(st.pp*uv,3)+"</td><td>"+f(st.pp/fa,3)+"</td></tr>";
   if(st.s10>0)h+="<tr><td>σ @10 SPS</td><td>"+f(st.s10,3)+"</td><td>"+f(st.s10*uv,4)+"</td><td>"+f(st.s10/fa,4)+"</td></tr>";
-  if(cfg.filter>0&&st.sg>0)h+="<tr><td>σ geglättet</td><td>"+f(st.sg,3)+"</td><td>"+f(st.sg*uv,4)+"</td><td><b>"+f(st.sg/fa,4)+"</b></td></tr>";
+  if(cfg.filter>0&&st.sg>0)h+="<tr><td>"+T("σ geglättet")+"</td><td>"+f(st.sg,3)+"</td><td>"+f(st.sg*uv,4)+"</td><td><b>"+f(st.sg/fa,4)+"</b></td></tr>";
   h+="</table>";
   const enob=st.sigma>0?Math.log2(16777216/st.sigma):24,nfb=st.sigma>0?Math.log2(16777216/(6.6*st.sigma)):24;
-  h+='<div style="margin-top:6px"><b>Effektive Auflösung:</b> '+f(enob,2)+" Bit · <b>rauschfrei:</b> "+f(nfb,2)+" Bit</div>";
+  h+='<div style="margin-top:6px">'+T("<b>Effektive Auflösung:</b> {0} Bit · <b>rauschfrei:</b> {1} Bit",f(enob,2),f(nfb,2))+"</div>";
   if(st.sigma>0){const teile=cfg.nennlast*fa/st.sigma;
-    h+="<div><b>Bezogen auf Nennlast:</b> "+de(teile)+" Teile = "+f(Math.log2(teile),2)+" Bit</div>";}
+    h+="<div>"+T("<b>Bezogen auf Nennlast:</b> {0} Teile = {1} Bit",de(teile),f(Math.log2(teile),2))+"</div>";}
   if(st.s10>0){const t10=cfg.nennlast*fa/st.s10;
-    h+="<div><b>Nach Mittelung auf 10 SPS:</b> "+de(t10)+" Teile = "+f(Math.log2(t10),2)+" Bit</div>";}
-  h+='<div class="sub" style="margin-top:4px">Rate gemessen '+f(st.ri,2)+" SPS · verloren "+st.verl+
-    (st.clip?' · <span class="warn">ÜBERSTEUERT</span>':"")+(cfg.kal?"":' · <span class="warn">g unkalibriert</span>')+"</div>";
+    h+="<div>"+T("<b>Nach Mittelung auf 10 SPS:</b> {0} Teile = {1} Bit",de(t10),f(Math.log2(t10),2))+"</div>";}
+  h+='<div class="sub" style="margin-top:4px">'+T("Rate gemessen {0} SPS · verloren {1}",f(st.ri,2),st.verl)+
+    (st.clip?' · <span class="warn">'+T("ÜBERSTEUERT")+'</span>':"")+(cfg.kal?"":' · <span class="warn">'+T("g unkalibriert")+'</span>')+"</div>";
   $("stat").innerHTML=h;
 }
 
@@ -459,7 +464,7 @@ function zeichnen(ts){
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
   const css=getComputedStyle(document.documentElement),farbe=n=>css.getPropertyValue(n).trim();
   ctx.font="12px system-ui,sans-serif";ctx.fillStyle=farbe("--leise");
-  if(!D.length){geo=null;ctx.fillText("warte auf Messwerte …",20,30);return;}
+  if(!D.length){geo=null;ctx.fillText(T("warte auf Messwerte …"),20,30);return;}
 
   const fs=Math.max(1,+$("fenster").value||10),tEnde=D[D.length-1][0],tStart=tEnde-fs*1000;
   let i0=D.length-1;while(i0>0&&D[i0-1][0]>=tStart)i0--;
@@ -489,18 +494,18 @@ function zeichnen(ts){
   const ys=schritt(hi-lo,6),dez=Math.max(0,-Math.floor(Math.log10(ys)+1e-9));
   const yt=[];for(let v=Math.ceil(lo/ys)*ys;v<=hi;v+=ys)yt.push(v);
   let lw=0;for(const v of yt)lw=Math.max(lw,ctx.measureText(f(v,dez)).width);
-  const L=lw+14,R=12,T=18,B=26,pw=W-L-R,ph=H-T-B;
-  geo={L,T,pw,ph,lo,hi};
-  const X=tt=>L+(tt+fs)/fs*pw,Y=v=>T+(hi-v)/(hi-lo)*ph;
+  const L=lw+14,R=12,T0=18,B=26,pw=W-L-R,ph=H-T0-B;
+  geo={L,T:T0,pw,ph,lo,hi};
+  const X=tt=>L+(tt+fs)/fs*pw,Y=v=>T0+(hi-v)/(hi-lo)*ph;
   ctx.strokeStyle=farbe("--gitter");ctx.lineWidth=1;ctx.textAlign="right";ctx.textBaseline="middle";
   for(const v of yt){const y=Math.round(Y(v))+.5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();ctx.fillText(f(v,dez),L-6,y);}
   const xs=schritt(fs,8),xdez=Math.max(0,-Math.floor(Math.log10(xs)+1e-9));
   ctx.textAlign="center";ctx.textBaseline="top";
   for(let v=-Math.floor(fs/xs)*xs;v<=1e-9;v+=xs){const x=Math.round(X(v))+.5;
-    ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();ctx.fillText(f(v,xdez)+" s",x,T+ph+6);}
+    ctx.beginPath();ctx.moveTo(x,T0);ctx.lineTo(x,T0+ph);ctx.stroke();ctx.fillText(f(v,xdez)+" s",x,T0+ph+6);}
   ctx.textAlign="left";ctx.textBaseline="alphabetic";ctx.fillText(einheitKurz(),4,12);
 
-  ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+  ctx.save();ctx.beginPath();ctx.rect(L,T0,pw,ph);ctx.clip();
   // Lücken (verlorene Daten, Pause) nicht verbinden
   const intervall=1000*cfg.gl/cfg.rate,luecke=Math.max(5*intervall,200)/1000;
   const laeufe=[];let s0=0;
@@ -521,15 +526,15 @@ function zeichnen(ts){
   ctx.restore();
   // Hinweis, wenn Werte außerhalb einer festen Skala liegen
   ctx.fillStyle=farbe("--warn");ctx.textAlign="right";
-  if(datHi>hi){ctx.textBaseline="top";ctx.fillText("▲ Werte darüber",L+pw-6,T+4);}
-  if(datLo<lo){ctx.textBaseline="bottom";ctx.fillText("▼ Werte darunter",L+pw-6,T+ph-4);}
+  if(datHi>hi){ctx.textBaseline="top";ctx.fillText(T("▲ Werte darüber"),L+pw-6,T0+4);}
+  if(datLo<lo){ctx.textBaseline="bottom";ctx.fillText(T("▼ Werte darunter"),L+pw-6,T0+ph-4);}
 }
 
-// ---------- CSV der Graphdaten ----------
+// ---------- CSV der Graphdaten (maschinenlesbar: Komma, Dezimalpunkt) ----------
 $("csv").onclick=()=>{
   if(!P.length||!cfg)return;
-  let s="# Waegezelle Graphdaten (Mittel/Min/Max je Punkt), rate="+cfg.rate+" SPS, Einheit="+einheitKurz()+"\n";
-  s+="# tara="+cfg.tara+" faktor="+cfg.faktor+" uv_count="+cfg.uv+" glaettung_s="+cfg.filter+"\nt_ms,mittel,min,max,geglaettet\n";
+  let s=T("# Waegezelle Graphdaten (Mittel/Min/Max je Punkt), rate={0} SPS, Einheit={1}",cfg.rate,einheitKurz())+"\n";
+  s+="# tara="+cfg.tara+" faktor="+cfg.faktor+" uv_count="+cfg.uv+" glaettung_s="+cfg.filter+"\n"+T("t_ms,mittel,min,max,geglaettet")+"\n";
   for(const p of P)s+=p[0]+","+umrechnen(p[1])+","+umrechnen(p[2])+","+umrechnen(p[3])+","+(p.length>4?umrechnen(p[4]):"")+"\n";
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([s],{type:"text/csv"}));
@@ -537,6 +542,15 @@ $("csv").onclick=()=>{
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 };
+
+// ---------- Sprache: statische Texte übersetzen, beim Umschalten alles neu zeichnen ----------
+const flTexte=()=>[...selFl.options].forEach(o=>{if(o.value!=="0")o.textContent=Number(o.value).toLocaleString(LOC())+" s";});
+spracheStart(()=>{
+  flTexte();statZeigen();
+  if(letzt){wertZeigen();statusZeigen();motZeigen();kalZeigen();leistenZeigen();}
+  else statusZeigen();
+});
+flTexte();
 
 abfragen();
 requestAnimationFrame(zeichnen);

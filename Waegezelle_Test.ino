@@ -56,6 +56,7 @@
 #include "src/presse.h"
 #include "src/sitzungen.h"
 #include "src/treiber/Antrieb.h"
+#include "src/geber.h"
 
 // Kern 1 bekommt einen eigenen 8-KB-Stack (statt 4 KB geteilt mit Kern 0)
 bool core1_separate_stack = true;
@@ -105,6 +106,7 @@ void loop() {
   presseSchritt();                 // Proben der laufenden Pressung (Kraft über Weg) verarbeiten
   antriebEreignisse();             // Meldungen von Kern 1 (Fahrt, Kalibrierung, Pressung, Taster, Alarm)
   messwerteAbholen();
+  geberSchritt();                  // Prüfbefehl 'enc': Encoder-Zählerstand melden
 }
 
 // ===========================================================================
@@ -121,4 +123,5 @@ void loop1() {
   watchdogHerzschlag();            // Lebenszeichen für Kern 0
   antrieb::schritt();              // Rampen, Ablauf, Taster, Alarm (kehrt sofort zurück)
   adcKern1Schritt();               // offenen ADC-Auftrag von Kern 0 erledigen
+  geberKern1Schritt();             // Prüfbefehl 'enc': Encoder-Pins abfragen (nur wenn aktiv)
 }

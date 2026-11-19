@@ -1,5 +1,7 @@
 # Hilfe & Tipps – EcklC OpenSmartPress
 
+[English](help.en.md) · **Deutsch**
+
 Diese Seite erklärt jeden Regler und jede Kennzahl der Weboberfläche und gibt Empfehlungen für typische Aufgaben.
 Alle Werte beziehen sich auf den Aufbau: 50-kg-Wägezelle mit 1,0–2,0 mV/V, 5,00 V Speisung aus dem LT3042,
 ADS1256 mit PGA 64. Verdrahtung, Datenformate und Dateiaufbau stehen in der [README](README.md).
@@ -76,6 +78,8 @@ Auf beiden Seiten gilt:
 - **Kein Neuladen während der Fahrt** – Während der Antrieb fährt, fragt der Browser vor dem Neuladen oder Verlassen
   der Seite nach; der Pico liefert dann nur eine kurze Warteseite, die sich nach dem Ende von selbst neu lädt.
   (Das Senden der ganzen Seite würde den Pico so lange aufhalten, dass Messwerte der Pressung verloren gingen.)
+- **Sprache** – **DE / EN** schaltet die Oberfläche sofort und ohne Neuladen um (also auch während einer Pressung).
+  Zahlen, Datum und die CSV-Exporte des Browsers folgen der Sprache. Protokoll und Meldungen des Pico bleiben deutsch.
 - Über unterstrichene Begriffe (z. B. Kennwerte) fahren zeigt eine kurze Erklärung.
 
 ### Steuerung auf der Messseite
@@ -252,6 +256,7 @@ an, sobald Kontakt oder die Maximalkraft erreicht ist. Aufwärts darf der Motor 
 | GP5 | ALM (optional) | Alarmausgang des Treibers, z. B. bei Schleppfehler. Mit `mp alm 1` bzw. `2` aktivieren. |
 | GP6 | START-Taster gegen GND | Startet eine Pressung (wenn alles bereit ist). |
 | GP7 | STOPP-Taster gegen GND | Hält sofort an (Software). Ersetzt keinen Not-Aus. |
+| GP10 / GP11 | Encoder EA+ / EB+ (nur zur Fehlersuche) | Je über Spannungsteiler 10 kΩ in Reihe, 20 kΩ nach GND (der Encoder liefert 5 V, der Pico verträgt nur 3,3 V); Pico-GND an EGND. Für den Befehl `enc`, danach wieder abklemmen. |
 
 ### Einrichten
 
@@ -319,7 +324,7 @@ Oben füllen Ablauf (mit Live-Kraft, START/STOPP) und das Diagramm den Bildschir
 Auswertung, Statistik, Sitzungen, Parameter und Protokoll folgen darunter. Das Menü links (Status, Sprungmarken)
 lässt sich mit « einklappen, damit das Diagramm breiter wird.
 Die drei Farbpunkte unten im Menü (auf der Messseite oben rechts) wählen das Farbschema: Grün/Schwarz,
-Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten.
+Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten, ebenso die Sprache (DE / EN).
 
 1. **Werkzeug auflegen und tarieren.** Das Gewicht des Werkzeugs wird abgezogen.
 2. **Hub kalibrieren** (ohne Werkstück): Der Motor fährt auf das Werkzeug, merkt sich den Werkzeug-Endpunkt (Weg 0)
@@ -478,6 +483,7 @@ Eingabe im Feld unter dem Protokoll oder im seriellen Monitor (Zeilenende „Neu
 | `sim [an\|aus]` | Simulation ohne Motor (Kraft aus der Position berechnet) |
 | `sim par` / `sim <name> <wert>` | Simulationsparameter anzeigen / setzen: `werkzeug weg fmin fmax rauschen riss spitze` |
 | `sit` | Sitzungen anzeigen; `sit neu <Name>`, `sit wahl <Nr>`, `sit zu`, `sit loeschen <Nr> ja` |
+| `enc` | Encoder-Test: zählt EA/EB an GP10/GP11 mit. Welle von Hand genau 1 Umdrehung drehen: Zählschritte = 4 × Strichzahl. Bei `mot s <n>` zeigt „Zählschritte/Motorschritt“, ob Encoder und Treibereinstellung zusammenpassen. `enc 0` = Zähler null, `enc aus` = beenden |
 | `wlan [an\|aus]` | WLAN-Status bzw. ein-/ausschalten (wieder an nur über USB) |
 | `wd` | Watchdog-Status, Grund des letzten Neustarts und höchste Stapelbelegung beider Kerne (`wd test 0\|1` hängt einen Kern zum Test auf und löst einen Neustart aus) |
 | `c` | Selbstkalibrierung des ADC (Offset und Verstärkung) |

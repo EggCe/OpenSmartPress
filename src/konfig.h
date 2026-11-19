@@ -27,6 +27,10 @@ constexpr uint8_t PIN_MOT_ALM     = 5;   // Alarmausgang des Treibers (optional,
 constexpr uint8_t PIN_TASTE_START = 6;   // Taster gegen GND: Endpunkt-Kalibrierung starten
 constexpr uint8_t PIN_TASTE_STOPP = 7;   // Taster gegen GND: sofort anhalten
 
+// Nur für den Prüfbefehl 'enc': Encoder EA+/EB+ des Motors über Spannungsteiler 10k/20k (5 V -> 3,3 V)
+constexpr uint8_t PIN_GEBER_A     = 10;
+constexpr uint8_t PIN_GEBER_B     = 11;
+
 // ===========================================================================
 // Analoge Kenngrößen und Grenzwerte
 // ===========================================================================

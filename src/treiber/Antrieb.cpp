@@ -584,7 +584,17 @@ void init(uint8_t pinPuls, uint8_t pinDir, uint8_t pinEna, uint8_t pinAlm,
   gpio_init(pStart); gpio_set_dir(pStart, GPIO_IN); gpio_pull_up(pStart);
   gpio_init(pStopp); gpio_set_dir(pStopp, GPIO_IN); gpio_pull_up(pStopp);
 
-  // PWM: 1 Takt = 1 µs, Impuls am Periodenanfang
+  // Der MOSFET-Pegelwandler leitet den Strom der Optokoppler-LED des HB808C (ca. 7-16 mA)
+  // in den Pico-Pin -> 12 mA statt der voreingestellten 4 mA. Die Einstellung liegt im
+  // Pad-Register und bleibt auch beim Umschalten von ENA zwischen Ein- und Ausgang erhalten.
+  gpio_set_drive_strength(pPuls, GPIO_DRIVE_STRENGTH_12MA);
+  gpio_set_drive_strength(pDir,  GPIO_DRIVE_STRENGTH_12MA);
+  gpio_set_drive_strength(pEna,  GPIO_DRIVE_STRENGTH_12MA);
+
+  // PUL zuerst fest auf Ruhepegel legen und erst dann der PWM übergeben: Sonst könnte der
+  // PWM-Ausgang beim Einrichten (Vergleichswert gesetzt, Slice aus) kurz einen Impuls zeigen.
+  // Erst starten() schaltet den Pin wieder auf den PWM-Ausgang.
+  pulsRuhepegel();
   gpio_set_function(pPuls, GPIO_FUNC_PWM);
   slice = pwm_gpio_to_slice_num(pPuls);
   kanal = pwm_gpio_to_channel(pPuls);

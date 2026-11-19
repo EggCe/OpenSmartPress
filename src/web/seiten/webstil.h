@@ -166,9 +166,9 @@ background:var(--karte);color:var(--text);box-shadow:0 4px 18px rgba(0,0,0,.35);
 
 /* Modus Bedienen / Einrichten: Einrichte-Elemente nur im Modus Einrichten */
 :root[data-modus="bedienen"] .einr{display:none!important}
-.modus{display:inline-flex;border:1px solid var(--rand2);border-radius:999px;padding:2px;background:var(--bg2)}
-.modus button{border:0;padding:3px 11px;font-size:12px;box-shadow:none;background:transparent;color:var(--leise)}
-.modus button.aktiv{background:var(--akzent);color:var(--akzentText)}
+.modus,.sprachwahl{display:inline-flex;border:1px solid var(--rand2);border-radius:999px;padding:2px;background:var(--bg2)}
+.modus button,.sprachwahl button{border:0;padding:3px 11px;font-size:12px;box-shadow:none;background:transparent;color:var(--leise)}
+.modus button.aktiv,.sprachwahl button.aktiv{background:var(--akzent);color:var(--akzentText)}
 /* Begriffe mit Erklärung (title) */
 dt[title],th[title],td[title],label[title]{text-decoration:underline dotted var(--rand2);text-underline-offset:3px;cursor:help}
 /* geänderter, noch nicht übernommener Wert */
@@ -181,6 +181,6 @@ input.geaendert{border-color:var(--warn);box-shadow:0 0 0 3px rgba(var(--wr),.18
   select,input[type=number],input[type=text]{min-height:40px}
   input[type=checkbox]{width:22px;height:22px}
   .themen button{width:30px;height:30px;min-height:0}
-  .modus button{min-height:34px}
+  .modus button,.sprachwahl button{min-height:34px}
 }
 )WEBSTIL";

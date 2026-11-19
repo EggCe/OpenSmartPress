@@ -1,5 +1,7 @@
 # OpenSmartPress
 
+[English](README.en.md) · **Deutsch**
+
 Präzise Kraft- und Gewichtsmessung mit einer 50-kg-Wägezelle, einem 24-Bit-ADC **ADS1256** und einem
 **Raspberry Pi Pico W**. Die Messwerte erscheinen live im Browser über WLAN und über USB auf dem PC.
 Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umschalten.
@@ -12,7 +14,8 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 - **Dauerbetrieb des ADS1256** (RDATAC) mit DRDY-Interrupt auf einem eigenen Prozessorkern, SPI mit 1,9 MHz,
   Ringpuffer für 4096 Messwerte. Verlorene Werte werden gezählt und angezeigt.
 - **Weboberfläche** direkt vom Pico: Gewichtsanzeige, Live-Diagramm Zeit/Gewicht mit Min/Max-Band,
-  Live-Statistik, Protokoll und Befehlszeile. Erklärungen und Einstelltipps stehen in [help.md](help.md).
+  Live-Statistik, Protokoll und Befehlszeile, auf **Deutsch oder Englisch** (Umschalter DE/EN). Erklärungen und
+  Einstelltipps stehen in [help.md](help.md) (englisch: [help.en.md](help.en.md)).
 - **Glättung** als gleitender Mittelwert über eine frei wählbare Zeit (0–60 s), unabhängig von der Datenrate.
 - **Tara und Kalibrierung** mit Plausibilitätsprüfung (Empfindlichkeit in mV/V, Unsicherheit des Faktors).
 - **Rauschanalyse**: Standardabweichung in Counts, µV und Gramm, effektive und rauschfreie Auflösung,
@@ -31,6 +34,8 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 | ADC | ADS1256-Modul, 7,68-MHz-Quarz, Referenz ADR03 (2,5 V), 5 V Versorgung, 3,3-V-Logik |
 | Wägezelle | 50 kg, Flachmembran, 350-Ω-Vollbrücke, 1,0–2,0 mV/V |
 | Brückenspeisung | 5,00 V aus einem LT3042 (rauscharmer Linearregler) |
+
+Datenblattwerte der Teile und was sie für diesen Aufbau bedeuten: [docs/hardware.md](docs/hardware.md).
 
 ### Verdrahtung
 
@@ -68,6 +73,7 @@ Nema-23-Closed-Loop-Schrittmotor mit Treiber **HB808C** (PUL/DIR, 24–80 V, Sig
 | GP5 | ALM | optional, Alarmausgang des Treibers (`mp alm`) |
 | GP6 | START-Taster gegen GND | startet eine Pressung (wenn alles bereit ist) |
 | GP7 | STOPP-Taster gegen GND | hält sofort an (Software, kein Not-Aus) |
+| GP10 / GP11 | Encoder EA+ / EB+ (nur Prüfbefehl `enc`) | je über Spannungsteiler 10 kΩ / 20 kΩ nach GND (5 V → 3,3 V), GND an EGND; nach dem Test wieder abklemmen |
 
 Ein Nema 23 an einer Spindel kann ein Vielfaches der 50 kg Nennlast drücken. Die Kraftgrenze im Pico ist schnell,
 ersetzt aber keinen **Not-Aus** und keinen mechanischen Anschlag.
@@ -118,8 +124,15 @@ Signalleitungen Grün/Weiß verdrillen und vom Pico fernhalten. Den Einfluss des
 | `http://waegezelle.local/` | Messseite (Service): Gewicht, Diagramm, Statistik, Protokoll, Befehle |
 
 Funktioniert `waegezelle.local` nicht, die IP-Adresse aus dem seriellen Monitor verwenden. Die Seiten liegen
-im Flash des Pico und brauchen kein Internet. Der Knopf „Hilfe“ öffnet [help.md](help.md) auf GitHub (dafür ist
-Internet nötig): alle Regler und Kennzahlen erklärt, Einstelltipps, Kalibrierablauf.
+im Flash des Pico und brauchen kein Internet. Der Knopf „Hilfe“ öffnet [help.md](help.md) (englisch
+[help.en.md](help.en.md)) auf GitHub (dafür ist Internet nötig): alle Regler und Kennzahlen erklärt, Einstelltipps,
+Kalibrierablauf.
+
+**Sprache:** Beide Seiten haben einen Umschalter **DE / EN** (Messseite oben rechts, Pressseite im Menü links). Die
+Wahl wird im Browser gespeichert und gilt für beide Seiten; ohne Wahl entscheidet die Browsersprache. Umgeschaltet
+wird sofort ohne Neuladen, also auch während der Antrieb fährt. Zahlen- und Datumsformat folgen der Sprache, ebenso
+die CSV-Exporte des Browsers (Deutsch: `;` und Dezimalkomma, Englisch: `,` und Dezimalpunkt). Protokoll,
+Rückmeldungen des Pico und der Sitzungsexport des Pico (`/sitzung/export`) bleiben deutsch.
 
 Beide Seiten haben die Ansicht **Bedienen / Einrichten** (im Browser gespeichert, neuer Browser = Bedienen):
 Bedienen zeigt nur Tara, Hub kalibrieren, Sitzung, START/STOPP, Diagramm und Auswertung; Einrichten zusätzlich
@@ -172,6 +185,7 @@ Im Eingabefeld der Weboberfläche oder im seriellen Monitor. `h` zeigt alle Befe
 | `m <0..4>` | USB-Ausgabe: 0 aus, 1 lesbar, 2 CSV, 3 Arduino-Plotter, 4 binär |
 | `wlan [an\|aus]` | WLAN-Status bzw. ein-/ausschalten |
 | `wd` / `wd test 0\|1` | Watchdog-Status / Kern 0 bzw. 1 zum Test aufhängen (löst Neustart aus) |
+| `enc` / `enc 0` / `enc aus` | Encoder-Test: Quadratur an GP10/GP11 mitzählen (1 Umdrehung = 4 × Strichzahl) / Zähler null / beenden |
 | `i` / `d` / `c` | Status / Register des ADS1256 / Selbstkalibrierung des ADC |
 | `s` | Einstellungen im Flash speichern |
 | `x` | Laufenden Auftrag abbrechen |
@@ -330,11 +344,14 @@ Waegezelle_Test/
 │       ├── webserver.*        HTTP-Routen, JSON für /daten
 │       ├── presse_web.cpp     Routen der Pressseite, Sitzungen, Export
 │       ├── livedaten.*        Diagrammpunkte und Live-Statistik
-│       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webstil.h
+│       └── seiten/            webui.h (Messseite), presse.h (Pressseite), webstil.h, sprache.h (DE/EN)
 ├── tools/waegezelle_plot.py   PC-Programm für Live-Anzeige und Aufzeichnung über USB
+├── tools/motortest/          eigener Sketch nur für den Antrieb (Fehlersuche, OHNE Kraftüberwachung;
+│                             Befehle über seriellen Monitor/Plotter, 'h' = Hilfe)
+├── tools/sprache_pruefen.py   prüft, ob jeder Text der Weboberfläche eine englische Übersetzung hat
 ├── tests/host/                Tests der hardwareunabhängigen Logik auf dem PC (sh tests/host/run.sh)
-├── .github/workflows/         CI: Tests, Übersetzen ohne Warnungen, RAM-Grenze
-└── docs/                      Verdrahtungsplan
+├── .github/workflows/         CI: Tests, Übersetzungen, Übersetzen ohne Warnungen, RAM-Grenze
+└── docs/                      Verdrahtungsplan, Hardwaredaten (hardware.md / hardware.en.md)
 ```
 
 ### Datenformate
@@ -363,6 +380,7 @@ Gramm = (Counts − tara) / faktor
 | Adresse | Inhalt |
 |---|---|
 | `GET /` / `GET /presse` | Messseite / Pressseite. Während der Antrieb fährt (Pressung, Kalibrierung, Fahrt) kommt stattdessen eine kurze Warteseite (503), die sich alle 2 s neu lädt: das Senden der ganzen Seite würde Kern 0 so lange blockieren, dass Proben der Pressung verloren gehen. Beide Seiten fragen vor dem Verlassen nach, solange der Antrieb fährt. |
+| `GET /stil.css` / `GET /sprache.js` | gemeinsames Stylesheet / Sprachwahl mit den englischen Texten beider Seiten (5 min zwischengespeichert) |
 | `GET /daten?p=<punkt>&l=<log>` | JSON: Konfiguration, Diagrammpunkte (Zeit, Mittel, Min, Max, geglättet), Statistik, neue Protokollzeilen |
 | `POST /cmd` mit `c=<befehl>` | führt einen Befehl aus (Kopfzeile `X-Waegezelle: 1` nötig, siehe unten) |
 | `GET /presse/status` | JSON: Bereitschaft, Antrieb, aktive Sitzung, Live-Kurve, Rohdatenstand, neue Protokollzeilen |
@@ -397,7 +415,8 @@ curl -X POST -H "X-Waegezelle: 1" --data "c=i" http://waegezelle.local/cmd
   `/einst.bin` um. Ein Stromausfall dabei hinterlässt immer die alte oder die neue Fassung. Ältere Firmware
   speicherte im EEPROM-Bereich; diese Werte werden beim ersten Start übernommen und mit `s` in die Datei geschrieben.
 - **Tests:** `sh tests/host/run.sh` (braucht g++, unter Windows z. B. in WSL) prüft CRC, Binärrahmen, Statistik und
-  die Sensorfehler-Erkennung auf dem PC. Die GitHub-Action `.github/workflows/firmware.yml` führt diese Tests aus und
+  die Sensorfehler-Erkennung auf dem PC. `python tools/sprache_pruefen.py` prüft, ob jeder Text der Weboberfläche
+  eine englische Übersetzung hat. Die GitHub-Action `.github/workflows/firmware.yml` führt diese Prüfungen aus und
   übersetzt die Firmware; sie schlägt bei Compiler-Warnungen oder mehr als 224 000 Byte statischem RAM fehl.
 
 ## Lizenz

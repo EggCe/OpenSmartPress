@@ -1,5 +1,6 @@
 # Prüft jeden Push und Pull Request:
 #  - Tests der hardwareunabhängigen Logik auf dem PC (tests/host)
+#  - jeder Text der Weboberfläche hat eine englische Übersetzung (tools/sprache_pruefen.py)
 #  - Übersetzen der Firmware wie in CLAUDE.md beschrieben: ohne Compiler-Warnungen und mit
 #    höchstens RAM_MAX Byte statischem RAM (Reserve für Heap und Stapel, siehe CLAUDE.md)
 name: Firmware
@@ -15,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Tests auf dem PC
         run: sh tests/host/run.sh
+      - name: Englische Texte der Weboberflaeche vollstaendig
+        run: python3 tools/sprache_pruefen.py
 
   build:
     runs-on: ubuntu-latest

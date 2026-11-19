@@ -1,5 +1,7 @@
 # Hardware – Datenblätter und Kennwerte
 
+[English](hardware.en.md) · **Deutsch**
+
 Inhalt: Wägezelle, Antrieb (Treiber HB808C), Linearmodul mit Kugelumlaufspindel.
 
 Technische Daten der verbauten Teile als Referenz (auch als Kontext für KI-Assistenten). Verdrahtung, Pins und
@@ -75,12 +77,47 @@ Angaben laut Händlerbeschreibung.
 
 Folgen für die Firmware:
 
-- `schritteProMm` (`mp spmm`) = am Treiber eingestellte ppr / Spindelsteigung, z. B. 1600 ppr / 5 mm = 320 Schritte/mm.
+- Beim MOSFET-Pegelwandler fließt der Strom der Optokoppler-LED (ca. 7–16 mA, bei 5 V eher unten) durch den MOSFET
+  in den Pico-Pin. Die Firmware stellt GP2/GP3/GP4 deshalb in `antrieb::init()` auf 12 mA Treiberstärke
+  (Standard des RP2040: 4 mA).
+- `schritteProMm` (`mp spmm`) = am Treiber eingestellte ppr / Spindelsteigung, z. B. 1600 ppr / 5 mm = 320 Schritte/mm
+  (eingestellt sind 4000 ppr → 800 Schritte/mm, siehe unten).
 - Schrittfrequenz = Geschwindigkeit × `schritteProMm`; muss unter 200 kHz bleiben (bei 320 Schritte/mm und
   100 mm/s: 32 kHz).
 - Bei Verfolgungsfehler/Überlast (z. B. Werkzeug blockiert, Kraft zu groß) geht der Treiber auf Alarm und der Motor
   wird stromlos → ALM an GP5 auswerten (`mp alm`), danach ist die Position nicht mehr gesichert (neu kalibrieren).
 - Das Datenblatt nennt kein Drehmoment des Motors; die Presskraft wird deshalb nur über die Wägezelle begrenzt.
+
+### Anschluss und Einstellung (am Aufbau geprüft)
+
+**Encoder-Kabel des Motors** an der 6-poligen Encoder-Klemme des HB808C. Die Farben weichen von den üblichen Tabellen
+ab (dort ist z. B. Orange bzw. Weiß = GND) – bei diesem Motor ist **Schwarz = GND**:
+
+| Klemme | Signal | Ader |
+|---|---|---|
+| 1 | EB+ | gelb |
+| 2 | EB− | orange |
+| 3 | EA+ | grün |
+| 4 | EA− | blau |
+| 5 | VCC (+5 V vom Treiber) | rot |
+| 6 | EGND | schwarz |
+
+Fehlerbild bei falschem GND/vertauschten Paaren: Der Motor hält im Stillstand und federt zurück, brummt aber laut,
+sobald er fahren soll, und der Treiber geht auf Schleppfehler (rote LED). Prüfen lässt sich die Belegung ohne Strom
+mit der Diodenprüfung (rote Spitze auf GND → jede Signalader ca. 0,6 V, umgekehrt OL) und mit Strom an den Pegeln
+(LOW < 0,5 V, HIGH ca. 4–5 V, die beiden Adern eines Paars immer entgegengesetzt). Der Prüfbefehl `enc` und der
+Sketch `tools/motortest/` zählen den Encoder zusätzlich am Pico mit.
+
+**DIP-Schalter** (Handbuch: SW1–4 Mikroschritt, SW5 Drehrichtung, SW6 Regelmodus, SW7/8 Motortyp; die Tabelle des
+Händlers beschriftet die Mikroschritt-Spalten fälschlich mit SW5–SW8): SW1–4 = ON OFF ON OFF → **4000 Impulse/U**,
+also `mp spmm 800` bei 5 mm Steigung; SW5 OFF (CCW), SW6 OFF (FOC), SW7/8 = OFF/ON (57er-Closed-Loop-Motor).
+
+**Fehlercodes** der roten LED (blinkt im 5-s-Zyklus; Rücksetzen nur durch Aus-/Einschalten): 1× Überstrom,
+2× Überspannung (> 90 V), 5× Schleppfehler außerhalb der Toleranz. Unterspannungsabschaltung unter 15 V.
+
+**Steuereingänge:** gemeinsame Anode (PUL+/DIR+/ENA+ an 5 V, Pegelwandler zieht PUL−/DIR−/ENA− nach GND) mit
+`mp inv 1`; ENA offen = freigegeben. Impuls ≥ 1,5 µs, DIR ≥ 1 µs vor der Flanke (Firmware: 5 µs bzw. 20 µs).
+Eingangsstrom 6–16 mA. Versorgung 24–80 V, empfohlen 36/48 V.
 
 Im selben Angebot gibt es eine Open-Loop-Variante mit Treiber **DM556** (20–50 V DC, 400–25 600 Schritte/U) – sie ist
 **nicht** verbaut.

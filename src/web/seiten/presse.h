@@ -18,6 +18,9 @@
  * in der IndexedDB ab ("roh": alle Proben, "kurve": Mittel je Motorschritt). Ist eine
  * passende Rohkurve vorhanden (gleiche Probenzahl), wird sie statt der Pico-Kurve
  * (<= 960 Abschnitte) für Auswahl, Auswertung und Rohdaten-CSV benutzt.
+ *
+ * Sprache: deutsche Texte stehen hier, /sprache.js (sprache.h) übersetzt sie ins Englische
+ * (statischer Text beim Start, Texte aus dem Skript über T(), Firmware-Texte über TF()).
  */
 #pragma once
 
@@ -28,6 +31,7 @@ static const char PRESSE_HTML[] = R"PRESSE(<!doctype html>
 <link rel="stylesheet" href="/stil.css">
 <script>try{document.documentElement.dataset.thema=localStorage.getItem("wz_thema")||"";
 document.documentElement.dataset.modus=JSON.parse(localStorage.getItem("wz_modus")||'"bedienen"');}catch(e){document.documentElement.dataset.modus="bedienen";}</script>
+<script src="/sprache.js"></script>
 <style>
 main{max-width:none;margin:0;padding:14px 16px 28px;min-width:0}
 /* Rahmen: Menü links, Inhalt rechts */
@@ -145,7 +149,7 @@ td .chip,td button{padding:2px 9px;font-size:12px}
     <div class="grp">Seiten</div>
     <a class="aktiv" href="#oben">Pressen</a>
     <a href="/">Messseite</a>
-    <a href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md#pressen" target="_blank" rel="noopener">Hilfe ↗</a>
+    <a href="https://github.com/EggCe/OpenSmartPress/blob/main/help.md#pressen" data-href-en="https://github.com/EggCe/OpenSmartPress/blob/main/help.en.md#pressing" target="_blank" rel="noopener">Hilfe ↗</a>
   </nav>
   <div class="block">
     <div class="grp">Status</div>
@@ -160,6 +164,7 @@ td .chip,td button{padding:2px 9px;font-size:12px}
     <a class="einr" href="#bParameter">Parameter &amp; Protokoll</a>
   </nav>
   <div class="block"><div class="grp">Modus</div><div class="modus" title="Bedienen: nur was für die Produktion nötig ist · Einrichten: alle Einstellungen, Simulation, Protokoll"><button data-m="bedienen">Bedienen</button><button data-m="einrichten">Einrichten</button></div></div>
+  <div class="block"><div class="grp">Sprache</div><div class="sprachwahl" title="Sprache / Language"><button data-l="de">DE</button><button data-l="en">EN</button></div></div>
   <div class="fuss"><div class="themen block" title="Farbschema"><button data-t="" title="Grün / Schwarz"></button><button data-t="rot" title="Rot / Schwarz"></button><button data-t="hell" title="Blau / Hell"></button></div><button id="einklappen" title="Menü ein-/ausklappen">«</button></div>
 </aside>
 <main id="oben">
@@ -346,8 +351,12 @@ let live={id:-1,n:0,s:0,d:0,y:[],lauf:0};
 let ansicht=null,geo=null,tgeo=null,neuZeichnen=true;
 let roh={id:-1,n:0,luecke:false,teile:[],fertig:false,ende:false},rohHolt=false;
 
-const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?"–":v.toLocaleString("de-DE",{minimumFractionDigits:Math.max(0,d),maximumFractionDigits:Math.max(0,d)});
-const zeitText=z=>z?new Date(z*1000).toLocaleString("de-DE",{dateStyle:"short",timeStyle:"medium"}):"–";
+const fmt=(v,d)=>(v===null||v===undefined||!isFinite(v))?"–":v.toLocaleString(LOC(),{minimumFractionDigits:Math.max(0,d),maximumFractionDigits:Math.max(0,d)});
+const zeitText=z=>z?new Date(z*1000).toLocaleString(LOC(),{dateStyle:"short",timeStyle:"medium"}):"–";
+// CSV für Excel: Deutsch mit ; und Dezimalkomma, Englisch mit , und Dezimalpunkt
+const csvSep=()=>SPR==="en"?",":";";
+const csvZ=(v,d)=>isFinite(v)?(s=>SPR==="en"?s:s.replace(".",","))(Number(v).toFixed(Math.max(0,d))):"";
+const csvZeile=a=>a.map(v=>{v=String(v);return v.includes(csvSep())||/["\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(csvSep());
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 const lsLesen=(k,s)=>{try{const v=localStorage.getItem(k);return v===null?s:JSON.parse(v);}catch(e){return s;}};
 const lsSchreiben=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}};
@@ -409,21 +418,21 @@ function rueckmeldung(zeilen){
   }
   const zeig=l.length>3?l.slice(0,2):l;
   for(const [t,art] of zeig)meldung(t,art);
-  if(l.length>3)meldung("… "+(l.length-2)+" weitere Zeilen im Protokoll","");
+  if(l.length>3)meldung(T("… {0} weitere Zeilen im Protokoll",l.length-2),"");
 }
 async function befehl(c){
   rmBis=Date.now()+3500;
   try{const r=await fetch("/cmd",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams({c})});
-    if(!r.ok)meldung("Befehl „"+c+"“ abgelehnt (HTTP "+r.status+")","fehler");}
-  catch(e){meldung("Befehl „"+c+"“ nicht gesendet – keine Verbindung","fehler");
-    logText("# Browser: Befehl '"+c+"' konnte nicht gesendet werden\n");}
+    if(!r.ok)meldung(T("Befehl „{0}“ abgelehnt (HTTP {1})",c,r.status),"fehler");}
+  catch(e){meldung(T("Befehl „{0}“ nicht gesendet – keine Verbindung",c),"fehler");
+    logText(T("# Browser: Befehl '{0}' konnte nicht gesendet werden",c)+"\n");}
 }
 async function aktion(o){
   rmBis=Date.now()+3500;
   try{const r=await fetch("/sitzung",{method:"POST",headers:{"X-Waegezelle":"1"},body:new URLSearchParams(o)});const j=await r.json();listeLaden();
-    if(j.ok!==1)meldung("Sitzung: Aktion nicht ausgeführt – Grund im Protokoll","warn");
+    if(j.ok!==1)meldung(T("Sitzung: Aktion nicht ausgeführt – Grund im Protokoll"),"warn");
     return j.ok===1;}
-  catch(e){meldung("Sitzung: keine Verbindung zum Pico","fehler");return false;}
+  catch(e){meldung(T("Sitzung: keine Verbindung zum Pico"),"fehler");return false;}
 }
 document.querySelectorAll("button[data-c]").forEach(b=>b.onclick=()=>befehl(b.dataset.c));
 $("start").onclick=()=>befehl("pr");
@@ -563,7 +572,7 @@ async function rohAblegen(sit,nr){
   const kv=schrittKurve(r);
   const m={sit,nr,n:r.n,zeit,sps:r.sps,spmm:r.spmm,x:kv.x,y:kv.y};
   roh.teile=[];
-  if(!await dbAblegen([["roh",key,r],["kurve",key,m]]))logText("# Browser: Rohdaten konnten nicht gespeichert werden (IndexedDB)\n");
+  if(!await dbAblegen([["roh",key,r],["kurve",key,m]]))logText(T("# Browser: Rohdaten konnten nicht gespeichert werden (IndexedDB)")+"\n");
   const q=sitId===sit?pressen.get(nr):null;                  // Kopf evtl. erst jetzt geladen
   if(q)rohAnwenden(q,m);
 }
@@ -607,12 +616,12 @@ function herunterladen(text,name){
 }
 async function rohCsv(p){
   const r=await dbHolen("roh",rohSchluessel(sitId,p.k.nr));
-  if(!r){logText("# Browser: keine Rohdaten für Pressung "+p.k.nr+" gefunden\n");return;}
-  const d=rohDekodieren(r),z=(v,n)=>v.toFixed(n).replace(".",",");
-  const zeilen=["Sitzung;"+sitId+";"+sitName,"Pressung;"+p.k.nr,"Datenrate [SPS];"+z(r.sps,0),"Schritte/mm;"+z(r.spmm,3),"",
-    "Zeit [s];Weg [mm];Kraft ["+E.n+"];Phase"];
-  for(let i=0;i<r.n;i++)zeilen.push(z(d.t[i],6)+";"+z(d.schritt[i]/r.spmm,5)+";"+z(d.F[i]*E.f,E.d+2)+";"+(d.halt[i]?"Halten":"Drücken"));
-  herunterladen(zeilen.join("\r\n"),"sitzung_"+String(sitId).padStart(4,"0")+"_pressung_"+String(p.k.nr).padStart(4,"0")+"_roh.csv");
+  if(!r){logText(T("# Browser: keine Rohdaten für Pressung {0} gefunden",p.k.nr)+"\n");return;}
+  const d=rohDekodieren(r),z=csvZ,sp=csvSep(),halten=T("Halten"),druecken=T("Drücken");
+  const zeilen=[csvZeile([T("Sitzung"),sitId,sitName]),csvZeile([T("Pressung"),p.k.nr]),csvZeile([T("Datenrate [SPS]"),z(r.sps,0)]),
+    csvZeile([T("Schritte/mm"),z(r.spmm,3)]),"",csvZeile([T("Zeit [s]"),T("Weg [mm]"),T("Kraft [{0}]",E.n),T("Phase")])];
+  for(let i=0;i<r.n;i++)zeilen.push(z(d.t[i],6)+sp+z(d.schritt[i]/r.spmm,5)+sp+z(d.F[i]*E.f,E.d+2)+sp+(d.halt[i]?halten:druecken));
+  herunterladen(zeilen.join("\r\n"),T("sitzung")+"_"+String(sitId).padStart(4,"0")+"_"+T("pressung")+"_"+String(p.k.nr).padStart(4,"0")+"_"+T("roh")+".csv");
 }
 
 // ---------- Auswertung einer Pressung (Kräfte in N, Wege in mm ab Kontakt) ----------
@@ -712,19 +721,19 @@ function allesAuswerten(){
 // Typ "F" = Kraft, "F/mm" = Kraft je mm (beide in der gewählten Einheit); d = Stellen (bei F zusätzlich zu E.d)
 function kennListe(){
   const l=[
-    ["fuege","Fügekraft (ohne Anschlag)","F",0,p=>p.a.fuegeN],
-    ["spitze","Einführspitze","F",0,p=>p.a.spitzeN],
-    ["steigung","Plateau-Steigung","F/mm",0,p=>p.a.steigung],
-    ["achse","Plateau-Achsenabschnitt","F",0,p=>p.a.achse],
-    ["laufruhe","Laufruhe (σ um die Gerade)","F",1,p=>p.a.laufruhe],
-    ["abfall","Größter Kraftabfall","%",1,p=>p.a.abfallPct],
-    ["parbeit","Arbeit im Plateaufenster","J",3,p=>p.a.parbeit]];
-  fensterListe().forEach((x,i)=>l.push(["f"+i,"Kraft bei "+fmt(x,2)+" mm","F",0,p=>p.a.fenster?p.a.fenster[i]:NaN]));
-  l.push(["fend","Endkraft (am Anschlag)","F",0,p=>p.k.fendN],
-    ["kontakt","Kontaktposition","mm",3,p=>p.k.kontaktMm],
-    ["tiefe","Presstiefe","mm",3,p=>p.k.tiefeMm],
-    ["arbeit","Pressarbeit gesamt","J",3,p=>p.k.arbeitJ],
-    ["zeit","Presszeit","s",2,p=>p.k.presszeitS]);
+    ["fuege",T("Fügekraft (ohne Anschlag)"),"F",0,p=>p.a.fuegeN],
+    ["spitze",T("Einführspitze"),"F",0,p=>p.a.spitzeN],
+    ["steigung",T("Plateau-Steigung"),"F/mm",0,p=>p.a.steigung],
+    ["achse",T("Plateau-Achsenabschnitt"),"F",0,p=>p.a.achse],
+    ["laufruhe",T("Laufruhe (σ um die Gerade)"),"F",1,p=>p.a.laufruhe],
+    ["abfall",T("Größter Kraftabfall"),"%",1,p=>p.a.abfallPct],
+    ["parbeit",T("Arbeit im Plateaufenster"),"J",3,p=>p.a.parbeit]];
+  fensterListe().forEach((x,i)=>l.push(["f"+i,T("Kraft bei {0} mm",fmt(x,2)),"F",0,p=>p.a.fenster?p.a.fenster[i]:NaN]));
+  l.push(["fend",T("Endkraft (am Anschlag)"),"F",0,p=>p.k.fendN],
+    ["kontakt",T("Kontaktposition"),"mm",3,p=>p.k.kontaktMm],
+    ["tiefe",T("Presstiefe"),"mm",3,p=>p.k.tiefeMm],
+    ["arbeit",T("Pressarbeit gesamt"),"J",3,p=>p.k.arbeitJ],
+    ["zeit",T("Presszeit"),"s",2,p=>p.k.presszeitS]);
   return l;
 }
 // Erklärungen der Kennwerte (title, erscheint beim Darüberfahren)
@@ -743,7 +752,7 @@ const TIPP={
   zeit:"Dauer des Pressens ohne Eilgang und Rückfahrt",
   fx:"Kraft genau bei diesem Weg ab Kontakt",
   status:"abgeschlossen = ohne Abbruch beendet. Sagt nichts über die Qualität des Teils."};
-const tt=id=>{const s=TIPP[id]||(/^f\d/.test(id)?TIPP.fx:"");return s?' title="'+esc(s)+'"':'';};
+const tt=id=>{const s=TIPP[id]||(/^f\d/.test(id)?TIPP.fx:"");return s?' title="'+esc(T(s))+'"':'';};
 const istF=t=>t==="F"||t==="F/mm";
 const kwert=(p,m)=>{const v=m[4](p);return (v===undefined||v===null)?NaN:(istF(m[2])?v*E.f:v);};
 const kstellen=m=>istF(m[2])?E.d+m[3]:m[3];
@@ -785,7 +794,7 @@ function leistenZeigen(){
   $("offlineBanner").hidden=!off;document.body.classList.toggle("offline",off);
   const faehrt=!off&&!!S&&!!(S.bes||S.pr.lauf);
   $("stoppleiste").hidden=!faehrt;document.body.classList.toggle("faehrt",faehrt);
-  if(faehrt)$("stoppText").textContent=S.zust+(S.pos!==null?" · "+fmt(S.pos,2)+" mm":"")+" · "+fk(S.kraft);
+  if(faehrt)$("stoppText").textContent=TF(S.zust)+(S.pos!==null?" · "+fmt(S.pos,2)+" mm":"")+" · "+fk(S.kraft);
   $("simBanner").hidden=off||!S||!S.sim;
 }
 setInterval(leistenZeigen,500);
@@ -807,13 +816,13 @@ function verarbeiten(d){
 }
 function statusZeigen(){
   const el=$("status");
-  if(!online||!S){el.innerHTML='<span class="chip warn"><span class="punkt aus"></span>keine Verbindung</span>';
-    $("lvKraft").textContent="–";$("lvZust").textContent="keine Verbindung";$("lvPos").textContent="–";return;}
+  if(!online||!S){el.innerHTML='<span class="chip warn"><span class="punkt aus"></span>'+T("keine Verbindung")+'</span>';
+    $("lvKraft").textContent="–";$("lvZust").textContent=T("keine Verbindung");$("lvPos").textContent="–";return;}
   $("lvKraft").innerHTML=fmt(kr(S.kraft),E.d+1)+'<i>'+E.n+'</i>';
-  $("lvZust").innerHTML=(S.alarm?'<span class="warn">ALARM</span> · ':'')+(S.sim?'<span class="warn">Simulation</span> · ':'')+esc(S.zust);
+  $("lvZust").innerHTML=(S.alarm?'<span class="warn">ALARM</span> · ':'')+(S.sim?'<span class="warn">'+T("Simulation")+'</span> · ':'')+esc(TF(S.zust));
   $("lvPos").textContent=S.pos!==null?fmt(S.pos,3):"–";
   el.innerHTML='<span class="chip"><span class="punkt'+(S.ok?'':' aus')+'"></span>'+fmt(S.rate,0)+' SPS</span>'+
-    '<span class="chip">'+esc(S.zust)+'</span>'+
+    '<span class="chip">'+esc(TF(S.zust))+'</span>'+
     (S.pos!==null?'<span class="chip">Pos. '+fmt(S.pos,3)+' mm</span>':'')+
     '<span class="chip">'+fk(S.kraft)+'</span>'+(S.alarm?'<span class="chip warn">ALARM</span>':'')+
     (S.sim?'<span class="chip warn">SIMULATION</span>':'');
@@ -823,23 +832,23 @@ function ablaufZeigen(){
   const d=S;
   const nahNull=Math.abs(d.kraft)<Math.max(0.5,d.par.kontakt*0.5);
   if(document.activeElement!==$("sim"))$("sim").checked=!!d.sim;
-  schritt(1,d.ok&&(d.kal||d.sim)&&nahNull,!d.ok?'<span class="warn">ADC misst nicht</span>':
-    !d.kal&&!d.sim?'<span class="warn">Waage nicht kalibriert</span> – <a href="/#kalibrieren">jetzt kalibrieren</a> (Messseite)':
-    'Kraft jetzt: <b>'+fk(d.kraft,1)+'</b>'+(nahNull?' – tariert':' – mit Werkzeug „Tara“ drücken'));
-  schritt(2,!!d.end.akt,d.end.akt?'Werkzeug-Kontakt '+fmt(d.end.tiefe,3)+' mm unter Start, Endpunkt +'+fmt(d.end.ende,4)+
-    ' mm bei '+fk(d.end.kraft):'nach jedem Einschalten nötig – Werkzeug aufgelegt, Werkstück entnommen');
-  schritt(3,!!d.sit,d.sit?'<b>'+esc(d.sit.name)+'</b> · '+d.sit.n+' Pressungen':'keine Sitzung aktiv');
+  schritt(1,d.ok&&(d.kal||d.sim)&&nahNull,!d.ok?'<span class="warn">'+T("ADC misst nicht")+'</span>':
+    !d.kal&&!d.sim?T('<span class="warn">Waage nicht kalibriert</span> – <a href="/#kalibrieren">jetzt kalibrieren</a> (Messseite)'):
+    T("Kraft jetzt: <b>{0}</b>",fk(d.kraft,1))+(nahNull?T(" – tariert"):T(" – mit Werkzeug „Tara“ drücken")));
+  schritt(2,!!d.end.akt,d.end.akt?T("Werkzeug-Kontakt {0} mm unter Start, Endpunkt +{1} mm bei {2}",fmt(d.end.tiefe,3),fmt(d.end.ende,4),
+    fk(d.end.kraft)):T("nach jedem Einschalten nötig – Werkzeug aufgelegt, Werkstück entnommen"));
+  schritt(3,!!d.sit,d.sit?'<b>'+esc(d.sit.name)+'</b> · '+T("{0} Pressungen",d.sit.n):T("keine Sitzung aktiv"));
   $("start").disabled=!d.bereit;
-  schritt(4,!!d.bereit,d.pr.lauf?'<b>'+esc(d.zust)+'</b> …':d.bereit?'bereit – START drücken (Knopf oder Taster)':
-    '<span class="warn">'+esc(d.grund)+'</span>');
+  schritt(4,!!d.bereit,d.pr.lauf?'<b>'+esc(TF(d.zust))+'</b> …':d.bereit?T("bereit – START drücken (Knopf oder Taster)"):
+    '<span class="warn">'+esc(TF(d.grund))+'</span>');
 }
 
 // ---------- Tabelle, Statistik, Details ----------
 function statistik(){
   const {r,n,riss}=kennStat();
-  $("statSub").innerHTML=n+" gültige Pressungen (ohne Abbrüche)"+(riss?' · <span class="warn">'+riss+' mit Rissverdacht</span>':'');
+  $("statSub").innerHTML=T("{0} gültige Pressungen (ohne Abbrüche)",n)+(riss?' · <span class="warn">'+T("{0} mit Rissverdacht",riss)+'</span>':'');
   if(!n){$("stat").innerHTML="";return;}
-  let h='<table><tr><th>Kennwert</th><th>Mittel</th><th>σ</th><th>σ %</th><th>Min</th><th>Max</th><th>Spannweite</th></tr>';
+  let h='<table><tr><th>'+T("Kennwert")+'</th><th>'+T("Mittel")+'</th><th>σ</th><th>σ %</th><th>Min</th><th>Max</th><th>'+T("Spannweite")+'</th></tr>';
   for(const m of kennListe()){
     const x=r[m[0]];if(!x)continue;
     const d=kstellen(m);
@@ -850,13 +859,13 @@ function statistik(){
 }
 function tabelle(){
   const F=E.n;
-  let h='<thead><tr><th></th><th>Nr</th><th>Zeit</th><th'+tt("fuege")+'>Fügekraft '+F+'</th><th'+tt("spitze")+'>Spitze '+F+'</th><th'+tt("steigung")+'>Steigung '+F+'/mm</th>'+
-    '<th'+tt("laufruhe")+'>Laufruhe '+F+'</th><th'+tt("abfall")+'>Abfall %</th><th'+tt("fend")+'>Fend '+F+'</th><th'+tt("status")+'>Status</th></tr></thead><tbody>';
+  let h='<thead><tr><th></th><th>'+T("Nr")+'</th><th>'+T("Zeit")+'</th><th'+tt("fuege")+'>'+T("Fügekraft")+' '+F+'</th><th'+tt("spitze")+'>'+T("Spitze")+' '+F+'</th><th'+tt("steigung")+'>'+T("Steigung")+' '+F+'/mm</th>'+
+    '<th'+tt("laufruhe")+'>'+T("Laufruhe")+' '+F+'</th><th'+tt("abfall")+'>'+T("Abfall")+' %</th><th'+tt("fend")+'>'+T("Fend")+' '+F+'</th><th'+tt("status")+'>Status</th></tr></thead><tbody>';
   for(const p of [...pressen.values()].sort((a,b)=>b.k.nr-a.k.nr)){
     const k=p.k,a=p.a;
-    const st=(STATUS[k.status]||"?")+(k.sim?' (Sim.)':'');
-    h+='<tr data-nr="'+k.nr+'"'+(k.nr===auswahl?' class="sel"':'')+'><td><input type="checkbox" title="Kurve anzeigen"'+
-      (versteckt.has(k.nr)?'':' checked')+'></td><td>'+k.nr+(p.rx?' <span class="ok" title="Rohdaten (jeder Messwert) in diesem Browser">R</span>':'')+'</td><td>'+(k.zeit?new Date(k.zeit*1000).toLocaleTimeString("de-DE"):"–")+
+    const st=T(STATUS[k.status]||"?")+(k.sim?' (Sim.)':'');
+    h+='<tr data-nr="'+k.nr+'"'+(k.nr===auswahl?' class="sel"':'')+'><td><input type="checkbox" title="'+T("Kurve anzeigen")+'"'+
+      (versteckt.has(k.nr)?'':' checked')+'></td><td>'+k.nr+(p.rx?' <span class="ok" title="'+T("Rohdaten (jeder Messwert) in diesem Browser")+'">R</span>':'')+'</td><td>'+(k.zeit?new Date(k.zeit*1000).toLocaleTimeString(LOC()):"–")+
       '</td><td><b>'+fmt(kr(a.fuegeN),E.d)+'</b></td><td>'+fmt(kr(a.spitzeN),E.d)+'</td><td>'+fmt(kr(a.steigung),E.d)+
       '</td><td>'+fmt(kr(a.laufruhe),E.d+1)+'</td><td'+(a.riss?' class="warn"':'')+'>'+fmt(a.abfallPct,1)+(a.riss?' ⚠':'')+
       '</td><td>'+fmt(kr(k.fendN),E.d)+'</td><td'+(k.status?' class="warn"':'')+'>'+st+'</td></tr>';
@@ -871,38 +880,39 @@ function tabelle(){
 function waehlen(nr){auswahl=nr;details();tabelle();neuZeichnen=true;}
 function details(){
   const p=pressen.get(auswahl);
-  if(!p){$("detTitel").textContent="Pressung";$("detSub").textContent="";
-    $("details").innerHTML="<dt>Noch keine Pressung ausgewählt.</dt><dd></dd>";kurzwerte();return;}
+  if(!p){$("detTitel").textContent=T("Pressung");$("detSub").textContent="";
+    $("details").innerHTML="<dt>"+T("Noch keine Pressung ausgewählt.")+"</dt><dd></dd>";kurzwerte();return;}
   const k=p.k,a=p.a,{r}=kennStat(),liste=kennListe();
-  $("detTitel").textContent="Pressung "+k.nr;
-  $("detSub").innerHTML=zeitText(k.zeit)+' · <span class="'+(k.status?'warn':'ok')+'">'+(STATUS[k.status]||"?")+'</span>'+
-    (k.sim?' · <span class="warn">Simulation</span>':'')+(a.riss?' · <span class="warn">⚠ Rissverdacht</span>':'');
+  $("detTitel").textContent=T("Pressung {0}",k.nr);
+  $("detSub").innerHTML=zeitText(k.zeit)+' · <span class="'+(k.status?'warn':'ok')+'">'+T(STATUS[k.status]||"?")+'</span>'+
+    (k.sim?' · <span class="warn">'+T("Simulation")+'</span>':'')+(a.riss?' · <span class="warn">⚠ '+T("Rissverdacht")+'</span>':'');
   // Zeile für einen Kennwert aus der Liste, mit Abweichung zum Sitzungsmittel
   const zeile=(id,zusatz)=>{
     const m=liste.find(x=>x[0]===id);if(!m)return'';
     const v=kwert(p,m),d=kstellen(m),x=r[id];
     let abw='';
     if(x&&x.n>=2&&isFinite(v)&&!k.status){const dv=v-x.m;
-      abw='<i>'+(dv>=0?"+":"")+fmt(dv,d)+(x.m&&m[2]!=="%"?' ('+(dv>=0?"+":"")+fmt(100*dv/Math.abs(x.m),1)+' %)':'')+' zum Mittel</i>';}
+      abw='<i>'+(dv>=0?"+":"")+fmt(dv,d)+(x.m&&m[2]!=="%"?' ('+(dv>=0?"+":"")+fmt(100*dv/Math.abs(x.m),1)+' %)':'')+' '+T("zum Mittel")+'</i>';}
     return '<dt'+tt(id)+'>'+m[1]+'</dt><dd><b>'+fmt(v,d)+'</b> '+keinheit(m[2])+(zusatz||'')+abw+'</dd>';
   };
-  const bei=mm=>isFinite(mm)?' <i>bei '+fmt(mm,3)+' mm</i>':'';
-  const gr=t=>'<div class="gruppe">'+t+'</div>';
+  const bei=mm=>isFinite(mm)?' <i>'+T("bei {0} mm",fmt(mm,3))+'</i>':'';
+  const gr=t=>'<div class="gruppe">'+T(t)+'</div>';
+  const dt=t=>'<dt>'+T(t)+'</dt>';
   let h=gr("Fügen")+zeile("fuege",bei(a.fuegeMm))+zeile("spitze",bei(a.spitzeMm))+
     zeile("steigung")+zeile("achse")+zeile("laufruhe")+zeile("parbeit")+
-    (isFinite(a.p0)?'<dt>Plateaufenster</dt><dd>'+fmt(a.p0,3)+' – '+fmt(a.p1,3)+' mm ab Kontakt</dd>':'')+
+    (isFinite(a.p0)?dt("Plateaufenster")+'<dd>'+T("{0} – {1} mm ab Kontakt",fmt(a.p0,3),fmt(a.p1,3))+'</dd>':'')+
     zeile("abfall",(isFinite(a.abfallN)&&a.abfallN>0?' <i>('+fk(a.abfallN)+bei(a.abfallMm).replace(' <i>',' ').replace('</i>','')+')</i>':''));
   const fl=fensterListe();
   if(fl.length){h+=gr("Wegfenster ab Kontakt");fl.forEach((_,i)=>{h+=zeile("f"+i);});}
   h+=gr("Pressung")+zeile("kontakt")+zeile("tiefe")+zeile("fend")+
-    '<dt>Höchstkraft gesamt (inkl. Anschlag)</dt><dd>'+fk(k.fmaxN)+bei(k.fmaxMm-(k.kontakt?k.kontaktMm:0))+'</dd>'+
-    (k.haltMs?'<dt>Kraft nach Haltezeit</dt><dd>'+fk(k.fhaltN)+'</dd>':'')+
-    zeile("arbeit")+zeile("zeit")+'<dt>Zykluszeit</dt><dd>'+fmt(k.zykluszeitS,1)+' s</dd>'+
-    '<dt>Ende durch</dt><dd>'+(GRUND[k.grund]||"?")+'</dd>'+
-    '<dt>Proben</dt><dd>'+k.proben+' bei '+fmt(k.sps,0)+' SPS'+(k.verloren?' <span class="warn">('+k.verloren+' verloren)</span>':'')+'</dd>'+
-    '<dt>Kurve</dt><dd>'+(p.rx?'Rohdaten: '+p.rx.length+' Punkte, 1 Schritt = '+fmt(p.rds*1000,1)+' µm <button id="rohCsv">Rohdaten CSV</button>':
-      'Pico: '+(p.x?p.x.length:0)+' Punkte à '+fmt(k.d*1000,0)+' µm')+'</dd>'+
-    '<dt>Einstellungen</dt><dd>'+fmt(k.vPress,2)+' mm/s, Haltezeit '+k.haltMs+' ms</dd>';
+    dt("Höchstkraft gesamt (inkl. Anschlag)")+'<dd>'+fk(k.fmaxN)+bei(k.fmaxMm-(k.kontakt?k.kontaktMm:0))+'</dd>'+
+    (k.haltMs?dt("Kraft nach Haltezeit")+'<dd>'+fk(k.fhaltN)+'</dd>':'')+
+    zeile("arbeit")+zeile("zeit")+dt("Zykluszeit")+'<dd>'+fmt(k.zykluszeitS,1)+' s</dd>'+
+    dt("Ende durch")+'<dd>'+T(GRUND[k.grund]||"?")+'</dd>'+
+    dt("Proben")+'<dd>'+T("{0} bei {1} SPS",k.proben,fmt(k.sps,0))+(k.verloren?' <span class="warn">('+T("{0} verloren",k.verloren)+')</span>':'')+'</dd>'+
+    dt("Kurve")+'<dd>'+(p.rx?T("Rohdaten: {0} Punkte, 1 Schritt = {1} µm",p.rx.length,fmt(p.rds*1000,1))+' <button id="rohCsv">'+T("Rohdaten CSV")+'</button>':
+      T("Pico: {0} Punkte à {1} µm",p.x?p.x.length:0,fmt(k.d*1000,0)))+'</dd>'+
+    dt("Einstellungen")+'<dd>'+T("{0} mm/s, Haltezeit {1} ms",fmt(k.vPress,2),k.haltMs)+'</dd>';
   $("details").innerHTML=h;
   if($("rohCsv"))$("rohCsv").onclick=()=>rohCsv(p);
   kurzwerte();
@@ -913,9 +923,9 @@ function kurzwerte(){
   if(!p){el.hidden=true;return;}
   const k=p.k,a=p.a,liste=kennListe();
   const z=id=>{const m=liste.find(x=>x[0]===id);return m?'<dt'+tt(id)+'>'+m[1].replace(/ \(.*\)$| gesamt$/,"")+'</dt><dd><b>'+fmt(kwert(p,m),kstellen(m))+'</b> '+keinheit(m[2])+'</dd>':'';};
-  const st=k.status?'<span class="warn">'+(STATUS[k.status]||"?")+'</span>':a.riss?'<span class="warn">⚠ Rissverdacht</span>':'<span class="ok">abgeschlossen</span>';
-  el.innerHTML='<div class="kk">Pressung '+k.nr+'<span>'+st+(k.sim?' · Sim.':'')+'</span></div>'+
-    '<dl>'+z("fuege")+z("spitze")+'<dt>Höchstkraft</dt><dd><b>'+fmt(kr(k.fmaxN),E.d)+'</b> '+E.n+'</dd>'+
+  const st=k.status?'<span class="warn">'+T(STATUS[k.status]||"?")+'</span>':a.riss?'<span class="warn">⚠ '+T("Rissverdacht")+'</span>':'<span class="ok">'+T("abgeschlossen")+'</span>';
+  el.innerHTML='<div class="kk">'+T("Pressung {0}",k.nr)+'<span>'+st+(k.sim?' · Sim.':'')+'</span></div>'+
+    '<dl>'+z("fuege")+z("spitze")+'<dt>'+T("Höchstkraft")+'</dt><dd><b>'+fmt(kr(k.fmaxN),E.d)+'</b> '+E.n+'</dd>'+
     z("fend")+z("tiefe")+z("arbeit")+z("abfall")+'</dl>';
   el.hidden=false;
 }
@@ -984,21 +994,21 @@ function zeichnen(){
   neuZeichnen=false;
   trendZeichnen();
   const {w,h}=leinwand(ctx);
-  const L=62,R=14,T=12,B=38,pw=w-L-R,ph=h-T-B;
+  const L=62,R=14,T0=12,B=38,pw=w-L-R,ph=h-T0-B;
   const ks=aktuelleKurven();
   const b=ansicht||bereich(ks);
-  geo={L,T,pw,ph,...b};
-  const {X,Y,st}=achsen(ctx,geo,abKontakt()?"Weg ab Kontakt [mm]":"Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)","Kraft ["+E.n+"]");
+  geo={L,T:T0,pw,ph,...b};
+  const {X,Y,st}=achsen(ctx,geo,abKontakt()?T("Weg ab Kontakt [mm]"):T("Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)"),T("Kraft [{0}]",E.n));
 
-  ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+  ctx.save();ctx.beginPath();ctx.rect(L,T0,pw,ph);ctx.clip();
   const a=pressen.get(auswahl);
   // Plateaufenster der Auswahl schattieren
   if(a&&a.x&&isFinite(a.a.p0)){
     const off=versatz(a)-(a.k.kontaktMm||0);           // Weg ab Kontakt -> Anzeige
     ctx.fillStyle="rgba("+st.getPropertyValue("--ar")+",.07)";
-    ctx.fillRect(X(a.a.p0-off),T,X(a.a.p1-off)-X(a.a.p0-off),ph);
+    ctx.fillRect(X(a.a.p0-off),T0,X(a.a.p1-off)-X(a.a.p0-off),ph);
   }
-  if(b.x0<0&&b.x1>0){ctx.setLineDash([5,5]);ctx.strokeStyle=st.getPropertyValue("--linie");ctx.beginPath();ctx.moveTo(X(0),T);ctx.lineTo(X(0),T+ph);ctx.stroke();ctx.setLineDash([]);}
+  if(b.x0<0&&b.x1>0){ctx.setLineDash([5,5]);ctx.strokeStyle=st.getPropertyValue("--linie");ctx.beginPath();ctx.moveTo(X(0),T0);ctx.lineTo(X(0),T0+ph);ctx.stroke();ctx.setLineDash([]);}
   const linie=(x,y,off,farbe,breite,strich)=>{
     ctx.strokeStyle=farbe;ctx.lineWidth=breite;ctx.setLineDash(strich?[6,4]:[]);ctx.beginPath();let auf=false;
     for(let i=0;i<y.length;i++){if(!isFinite(y[i]))continue;const px=X(x[i]-off),py=Y(y[i]*E.f);if(auf)ctx.lineTo(px,py);else{ctx.moveTo(px,py);auf=true;}}
@@ -1047,7 +1057,7 @@ cv.addEventListener("wheel",e=>{
 },{passive:false});
 cv.addEventListener("pointerdown",e=>{if(!geo||e.button!==0)return;zieh={cx:e.clientX,cy:e.clientY,b:{x0:geo.x0,x1:geo.x1,y0:geo.y0,y1:geo.y1},weg:0};cv.setPointerCapture(e.pointerId);});
 cv.addEventListener("pointermove",e=>{
-  if(geo){const m=mausWerte(e,geo,cv);$("maus").textContent="Weg "+fmt(m.x,3)+" mm · Kraft "+fmt(m.y,E.d)+" "+E.n;}
+  if(geo){const m=mausWerte(e,geo,cv);$("maus").textContent=T("Weg {0} mm · Kraft {1}",fmt(m.x,3),fmt(m.y,E.d)+" "+E.n);}
   if(!zieh)return;
   const dx=e.clientX-zieh.cx,dy=e.clientY-zieh.cy;zieh.weg=Math.max(zieh.weg,Math.abs(dx)+Math.abs(dy));
   if(zieh.weg<4)return;
@@ -1113,16 +1123,16 @@ function trendZeichnen(){
   const {w,h}=leinwand(tctx);
   const {m,pk}=trendPunkte();
   tgeo=null;
-  if(!m||!pk.length){tctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--leise");tctx.font="13px system-ui,sans-serif";tctx.fillText("noch keine ausgewerteten Pressungen",70,40);return;}
+  if(!m||!pk.length){tctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue("--leise");tctx.font="13px system-ui,sans-serif";tctx.fillText(T("noch keine ausgewerteten Pressungen"),70,40);return;}
   const n=pk.length,mw=pk.reduce((a,q)=>a+q.v,0)/n,s=n>1?Math.sqrt(pk.reduce((a,q)=>a+(q.v-mw)*(q.v-mw),0)/(n-1)):0;
   let y0=Math.min(...pk.map(q=>q.v)),y1=Math.max(...pk.map(q=>q.v));
   if(n>=3){y0=Math.min(y0,mw-3*s);y1=Math.max(y1,mw+3*s);}
   if(!(y1>y0)){y0-=1;y1+=1;}
   const pad=(y1-y0)*0.08;
-  const L=62,R=14,T=10,B=34;
-  tgeo={L,T,pw:w-L-R,ph:h-T-B,x0:pk[0].nr-0.5,x1:pk[n-1].nr+0.5,y0:y0-pad,y1:y1+pad,pk};
-  const {X,Y,st}=achsen(tctx,tgeo,"Pressung Nr.",m[1]+" ["+keinheit(m[2])+"]",0);
-  tctx.save();tctx.beginPath();tctx.rect(L,T,tgeo.pw,tgeo.ph);tctx.clip();
+  const L=62,R=14,T0=10,B=34;
+  tgeo={L,T:T0,pw:w-L-R,ph:h-T0-B,x0:pk[0].nr-0.5,x1:pk[n-1].nr+0.5,y0:y0-pad,y1:y1+pad,pk};
+  const {X,Y,st}=achsen(tctx,tgeo,T("Pressung Nr."),m[1]+" ["+keinheit(m[2])+"]",0);
+  tctx.save();tctx.beginPath();tctx.rect(L,T0,tgeo.pw,tgeo.ph);tctx.clip();
   const hl=(v,strich)=>{tctx.strokeStyle=st.getPropertyValue("--akzent");tctx.lineWidth=1;tctx.setLineDash(strich?[5,4]:[]);
     tctx.beginPath();tctx.moveTo(L,Y(v));tctx.lineTo(L+tgeo.pw,Y(v));tctx.stroke();tctx.setLineDash([]);};
   hl(mw,false);
@@ -1136,8 +1146,8 @@ function trendZeichnen(){
   }
   tctx.restore();
   const d=kstellen(m);
-  $("trendSub").textContent="Mittel "+fmt(mw,d)+" · σ "+fmt(s,d+1)+" "+keinheit(m[2])+" · n = "+n+
-    " · gestrichelt: ±3σ, orange: außerhalb ±3σ oder Rissverdacht · Klick: Pressung auswählen";
+  $("trendSub").textContent=T("Mittel")+" "+fmt(mw,d)+" · σ "+fmt(s,d+1)+" "+keinheit(m[2])+" · n = "+n+
+    " · "+T("gestrichelt: ±3σ, orange: außerhalb ±3σ oder Rissverdacht · Klick: Pressung auswählen");
 }
 tcv.addEventListener("click",e=>{
   if(!tgeo)return;
@@ -1147,35 +1157,30 @@ tcv.addEventListener("click",e=>{
   if(best&&bd<Math.max(1,(tgeo.x1-tgeo.x0)/40))waehlen(best);
 });
 
-// ---------- Auswertung als CSV (Excel: ; und Dezimalkomma) ----------
+// ---------- Auswertung als CSV (Excel: Deutsch ; und Dezimalkomma, Englisch , und Dezimalpunkt) ----------
 $("awCsv").onclick=()=>{
-  const z=(v,d)=>isFinite(v)?Number(v).toFixed(Math.max(0,d)).replace(".",","):"";
+  const z=csvZ,ja=T("ja");
   const liste=kennListe(),{r}=kennStat();
   const zeilen=[];
-  zeilen.push("Auswertung Sitzung;"+sitId+";"+sitName);
-  zeilen.push("Erstellt;"+new Date().toLocaleString("de-DE"));
-  zeilen.push("Krafteinheit;"+E.n);
-  zeilen.push("Plateaufenster [% der Fügetiefe];"+AW.von+" - "+AW.bis);
-  zeilen.push("Anschlag ausgeschlossen [mm];"+z(AW.ende,2));
-  zeilen.push("Rissverdacht ab Kraftabfall [%];"+z(AW.abfall,1)+";innerhalb [mm];"+z(AW.strecke,3));
+  zeilen.push(csvZeile([T("Auswertung Sitzung"),sitId,sitName]));
+  zeilen.push(csvZeile([T("Erstellt"),new Date().toLocaleString(LOC())]));
+  zeilen.push(csvZeile([T("Krafteinheit"),E.n]));
+  zeilen.push(csvZeile([T("Plateaufenster [% der Fügetiefe]"),AW.von+" - "+AW.bis]));
+  zeilen.push(csvZeile([T("Anschlag ausgeschlossen [mm]"),z(AW.ende,2)]));
+  zeilen.push(csvZeile([T("Rissverdacht ab Kraftabfall [%]"),z(AW.abfall,1),T("innerhalb [mm]"),z(AW.strecke,3)]));
   zeilen.push("");
-  zeilen.push(["Nr","Zeit","Status","Simulation","Rissverdacht","Weg Fügekraft [mm]","Weg Einführspitze [mm]","Weg Kraftabfall [mm]"]
-    .concat(liste.map(m=>m[1]+" ["+keinheit(m[2])+"]")).join(";"));
+  zeilen.push(csvZeile([T("Nr"),T("Zeit"),"Status",T("Simulation"),T("Rissverdacht"),T("Weg Fügekraft [mm]"),T("Weg Einführspitze [mm]"),T("Weg Kraftabfall [mm]")]
+    .concat(liste.map(m=>m[1]+" ["+keinheit(m[2])+"]"))));
   for(const p of [...pressen.values()].sort((a,b)=>a.k.nr-b.k.nr)){
     const k=p.k,a=p.a;
-    zeilen.push([k.nr,k.zeit?new Date(k.zeit*1000).toLocaleString("de-DE"):"",STATUS[k.status]||"?",k.sim?"ja":"",a.riss?"ja":"",
-      z(a.fuegeMm,3),z(a.spitzeMm,3),z(a.abfallMm,3)].concat(liste.map(m=>z(kwert(p,m),kstellen(m)+1))).join(";"));
+    zeilen.push(csvZeile([k.nr,k.zeit?new Date(k.zeit*1000).toLocaleString(LOC()):"",T(STATUS[k.status]||"?"),k.sim?ja:"",a.riss?ja:"",
+      z(a.fuegeMm,3),z(a.spitzeMm,3),z(a.abfallMm,3)].concat(liste.map(m=>z(kwert(p,m),kstellen(m)+1)))));
   }
   zeilen.push("");
-  zeilen.push("Statistik (gültige Pressungen);n;Mittel;Sigma;Sigma %;Min;Max;Spannweite");
+  zeilen.push(csvZeile([T("Statistik (gültige Pressungen)"),"n",T("Mittel"),"Sigma","Sigma %","Min","Max",T("Spannweite")]));
   for(const m of liste){const x=r[m[0]];if(!x)continue;const d=kstellen(m)+1;
-    zeilen.push([m[1]+" ["+keinheit(m[2])+"]",x.n,z(x.m,d),z(x.s,d+1),x.m&&m[2]!=="%"?z(100*x.s/Math.abs(x.m),2):"",z(x.min,d),z(x.max,d),z(x.max-x.min,d)].join(";"));}
-  const blob=new Blob(["﻿"+zeilen.join("\r\n")],{type:"text/csv;charset=utf-8"});
-  const link=document.createElement("a");
-  link.href=URL.createObjectURL(blob);
-  link.download="sitzung_"+String(sitId).padStart(4,"0")+"_auswertung.csv";
-  document.body.appendChild(link);link.click();link.remove();
-  setTimeout(()=>URL.revokeObjectURL(link.href),5000);
+    zeilen.push(csvZeile([m[1]+" ["+keinheit(m[2])+"]",x.n,z(x.m,d),z(x.s,d+1),x.m&&m[2]!=="%"?z(100*x.s/Math.abs(x.m),2):"",z(x.min,d),z(x.max,d),z(x.max-x.min,d)]));}
+  herunterladen(zeilen.join("\r\n"),T("sitzung")+"_"+String(sitId).padStart(4,"0")+"_"+T("auswertung")+".csv");
 };
 
 // ---------- Sitzungen ----------
@@ -1184,25 +1189,25 @@ async function listeLaden(){
   try{
     const d=await (await fetch("/sitzungen",{cache:"no-store"})).json();
     sitzListe=d.liste;sitzAktiv=d.aktiv;
-    $("speicher").textContent="Speicher: "+fmt(d.sp.b/1024,0)+" von "+fmt(d.sp.g/1024,0)+" KB belegt";
+    $("speicher").textContent=T("Speicher: {0} von {1} KB belegt",fmt(d.sp.b/1024,0),fmt(d.sp.g/1024,0));
     $("speicherBalken").style.width=(d.sp.g?Math.min(100,100*d.sp.b/d.sp.g):0)+"%";
-    let h='<thead><tr><th>Nr</th><th>Name</th><th>Erstellt</th><th>Pressungen</th><th>Notiz</th><th></th></tr></thead><tbody>';
+    let h='<thead><tr><th>'+T("Nr")+'</th><th>Name</th><th>'+T("Erstellt")+'</th><th>'+T("Pressungen")+'</th><th>'+T("Notiz")+'</th><th></th></tr></thead><tbody>';
     for(const s of d.liste.slice().reverse()){
       const akt=s.id===d.aktiv;
-      h+='<tr'+(akt?' class="sel"':'')+'><td>'+s.id+'</td><td>'+(akt?'<b>'+esc(s.name)+'</b> (aktiv)':esc(s.name))+'</td><td>'+esc(s.erst)+
+      h+='<tr'+(akt?' class="sel"':'')+'><td>'+s.id+'</td><td>'+(akt?'<b>'+esc(s.name)+'</b> ('+T("aktiv")+')':esc(s.name))+'</td><td>'+esc(s.erst)+
         '</td><td>'+s.n+'</td><td>'+esc(s.notiz)+'</td><td style="white-space:nowrap">'+
-        (akt?'':'<button class="sendet" data-a="wahl" data-id="'+s.id+'">Öffnen</button> ')+
+        (akt?'':'<button class="sendet" data-a="wahl" data-id="'+s.id+'">'+T("Öffnen")+'</button> ')+
         '<a class="chip" href="/sitzung/export?id='+s.id+'&f=csv&e='+$("einheit").value+'" download>CSV</a> '+
         '<a class="chip" href="/sitzung/export?id='+s.id+'&f=json" download>JSON</a> '+
-        '<button class="einr sendet" data-a="aendern" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-notiz="'+esc(s.notiz)+'">Umbenennen</button> '+
-        '<button class="einr sendet" data-a="loeschen" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-n="'+s.n+'">Löschen</button></td></tr>';
+        '<button class="einr sendet" data-a="aendern" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-notiz="'+esc(s.notiz)+'">'+T("Umbenennen")+'</button> '+
+        '<button class="einr sendet" data-a="loeschen" data-id="'+s.id+'" data-name="'+esc(s.name)+'" data-n="'+s.n+'">'+T("Löschen")+'</button></td></tr>';
     }
     $("liste").innerHTML=h+'</tbody>';
     $("liste").querySelectorAll("button[data-a]").forEach(b=>b.onclick=async e=>{
       e.stopPropagation();
       const a=b.dataset.a,id=b.dataset.id;
       if(a==="wahl")aktion({a,id});
-      else if(a==="loeschen"){if(confirm("Sitzung "+id+" „"+b.dataset.name+"“ mit "+b.dataset.n+" Pressungen endgültig löschen?\nVorher exportieren!"))aktion({a,id});}
+      else if(a==="loeschen"){if(confirm(T("Sitzung {0} „{1}“ mit {2} Pressungen endgültig löschen?",id,b.dataset.name,b.dataset.n)+"\n"+T("Vorher exportieren!")))aktion({a,id});}
       else if(a==="aendern"){$("umbName").value=b.dataset.name;$("umbNotiz").value=b.dataset.notiz;$("umbDlg").dataset.id=id;
         $("umbDlg").showModal();$("umbName").focus();}
     });
@@ -1218,10 +1223,10 @@ $("umbOk").onclick=async()=>{
 // Schritt 3: Sitzung wählen oder anlegen, ohne die Seite zu verlassen
 function sitzDialog(){
   const heute=new Date().toLocaleDateString("sv-SE");                 // JJJJ-MM-TT
-  if(!$("dlgName").value)$("dlgName").value="Charge "+heute;
+  if(!$("dlgName").value)$("dlgName").value=T("Charge {0}",heute);
   const l=sitzListe.slice(-6).reverse();
   $("dlgListe").innerHTML=l.length?l.map(s=>'<button class="sendet" data-id="'+s.id+'"'+(s.id===sitzAktiv?' disabled':'')+'>'+esc(s.name)+
-    '<span>'+(s.id===sitzAktiv?'aktiv · ':'')+s.n+' Pressungen · '+esc(s.erst)+'</span></button>').join(""):'<div class="sub">noch keine Sitzungen</div>';
+    '<span>'+(s.id===sitzAktiv?T("aktiv")+' · ':'')+T("{0} Pressungen",s.n)+' · '+esc(s.erst)+'</span></button>').join(""):'<div class="sub">'+T("noch keine Sitzungen")+'</div>';
   $("dlgListe").querySelectorAll("button").forEach(b=>b.onclick=async()=>{if(await aktion({a:"wahl",id:b.dataset.id}))$("sitzDlg").close();});
   $("sitzDlg").showModal();$("dlgName").select();
 }
@@ -1267,10 +1272,10 @@ function simInfo(){
   if(!S){$("simInfo").textContent="";return;}
   const w=simWerte(),v=parseFloat(String($("sVpress").value).replace(",","."))||S.par.vpress,an=S.par.anfahrt;
   const dauer=(an+0.05)/v,proben=dauer*S.rate;
-  let t="Pressweg "+fmt(an,2)+" mm (Anfahrpunkt, max. "+fmt(S.simp?S.simp.wegmax:5,1)+" mm) → ca. "+fmt(dauer,1)+" s und "+
-    fmt(proben,0)+" Messwerte bei "+fmt(S.rate,0)+" SPS.";
-  if(w.weg>an*0.98)t+=" Hinweis: Fügeweg größer als der Anfahrpunkt – das Werkstück wird auf "+fmt(an*0.98,2)+" mm gekürzt.";
-  if(w.fmax>S.par.fmax/0.00980665)t+=" Hinweis: Spitzenkraft über der Maximalkraft – die Pressung endet früh.";
+  let t=T("Pressweg {0} mm (Anfahrpunkt, max. {1} mm) → ca. {2} s und {3} Messwerte bei {4} SPS.",
+    fmt(an,2),fmt(S.simp?S.simp.wegmax:5,1),fmt(dauer,1),fmt(proben,0),fmt(S.rate,0));
+  if(w.weg>an*0.98)t+=" "+T("Hinweis: Fügeweg größer als der Anfahrpunkt – das Werkstück wird auf {0} mm gekürzt.",fmt(an*0.98,2));
+  if(w.fmax>S.par.fmax/0.00980665)t+=" "+T("Hinweis: Spitzenkraft über der Maximalkraft – die Pressung endet früh.");
   $("simInfo").textContent=t;
 }
 $("simOeffnen").onclick=()=>{
@@ -1311,8 +1316,8 @@ function parameterZeigen(neuEinheit){
     if(document.activeElement!==el&&!el.classList.contains("geaendert"))el.value=wert(p);
   }
   const offen=PFELD.some(([id])=>$(id).classList.contains("geaendert"));
-  $("pInfo").innerHTML=(offen?'<span class="warn">Geänderte Werte (markiert) erst mit „Übernehmen“ senden.</span> ':'')+
-    "Eilgang "+fmt(p.vfahrt,1)+" mm/s. Übernommene Werte gelten bis zum Neustart; dauerhaft mit „Im Flash speichern“.";
+  $("pInfo").innerHTML=(offen?'<span class="warn">'+T("Geänderte Werte (markiert) erst mit „Übernehmen“ senden.")+'</span> ':'')+
+    T("Eilgang {0} mm/s. Übernommene Werte gelten bis zum Neustart; dauerhaft mit „Im Flash speichern“.",fmt(p.vfahrt,1));
 }
 for(const [id] of PFELD)$(id).oninput=e=>{e.target.classList.add("geaendert");if(S)parameterZeigen();};
 $("pSetzen").onclick=async()=>{
@@ -1342,6 +1347,13 @@ function logAufnehmen(neu){
   rueckmeldung(zeilen);
   logText(zeilen.filter(z=>!z.startsWith("#CFG")).join("\n"));
 }
+
+// ---------- Sprache: statische Texte übersetzen, beim Umschalten alles neu aufbauen ----------
+spracheStart(()=>{
+  trendAuswahl();anzeigenAktualisieren();listeLaden();
+  if(S){ablaufZeigen();parameterZeigen();leistenZeigen();}
+  statusZeigen();
+});
 
 trendAuswahl();
 listeLaden();

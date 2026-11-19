@@ -15,6 +15,7 @@
 #include "wlan.h"
 #include "seiten/webstil.h"
 #include "seiten/webui.h"
+#include "seiten/sprache.h"
 
 static WebServer server(80);
 static char      jsonPuf[1400];
@@ -75,10 +76,11 @@ void jsonEnde() {
 // 2 s neu laden, bis der Antrieb steht.
 static const char WARTESEITE[] = R"WARTE(<!doctype html><html lang="de"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2">
-<title>Bitte warten</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;
+<title>Bitte warten / Please wait</title></head><body style="margin:0;min-height:100vh;display:grid;place-items:center;
 background:#050705;color:#f3f7f3;font:16px system-ui,sans-serif;text-align:center"><div>
-<p style="font-size:22px;font-weight:700;color:#ffb020">Antrieb läuft</p>
-<p>Die Seite wird geladen, sobald die Pressung bzw. Fahrt beendet ist.</p></div></body></html>)WARTE";
+<p style="font-size:22px;font-weight:700;color:#ffb020">Antrieb läuft · Drive moving</p>
+<p>Die Seite wird geladen, sobald die Pressung bzw. Fahrt beendet ist.</p>
+<p lang="en">The page loads as soon as the press or move has finished.</p></div></body></html>)WARTE";
 
 bool webSeiteGesperrt() {
   if (!antrieb::beschaeftigt()) return false;
@@ -97,6 +99,13 @@ static void webStil() {                                 // 9 KB passen in ein TC
   // 5 Minuten zwischenspeichern: nach einem Firmware-Update ist neues CSS spätestens dann aktiv
   server.sendHeader("Cache-Control", "max-age=300");
   server.send_P(200, "text/css; charset=utf-8", WEBUI_CSS);
+}
+
+// Sprachwahl und englische Texte beider Seiten (sprache.h). Nicht gesperrt: wird nur direkt nach einer
+// Seite geladen, und die gibt es während einer Fahrt nicht; zwischengespeichert wie das CSS.
+static void webSprache() {
+  server.sendHeader("Cache-Control", "max-age=300");
+  server.send_P(200, "text/javascript; charset=utf-8", WEB_SPRACHE_JS);
 }
 
 static void webDaten() {
@@ -194,6 +203,7 @@ static void webBefehl() {
 void webserverStarten() {
   server.on("/", HTTP_GET, webSeite);
   server.on("/stil.css", HTTP_GET, webStil);
+  server.on("/sprache.js", HTTP_GET, webSprache);
   server.on("/daten", HTTP_GET, webDaten);
   server.on("/cmd", HTTP_POST, webBefehl);
   presseWebRouten();               // Pressseite, Sitzungen, Export (presse_web.cpp)
