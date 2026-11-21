@@ -469,7 +469,7 @@ async function kurveLaden(id,nr,token){
   const dv=new DataView(b),k=kopf(dv,0),n=Math.min(k.punkte,(b.byteLength-128)>>2);
   const x=new Float32Array(n),y=new Float32Array(n);
   for(let i=0;i<n;i++){const v=dv.getInt16(128+i*4,true);x[i]=k.s+i*k.d;y[i]=v===-32768?NaN:v*STUFE;}
-  const p={k,x,y,a:{}};
+  const p={k,x,y:gleit(x,y,GLAETT_MM),a:{}};
   auswerten(p);
   pressen.set(nr,p);
   spaeterAktualisieren();
@@ -557,7 +557,7 @@ function schrittKurve(r){
 // Rohkurve übernehmen, wenn sie zu dieser Pressung gehört (gleiche Probenzahl, Zeit passt)
 function rohAnwenden(p,m){
   if(!m||m.n!==p.k.proben||m.x.length<2||(p.k.zeit&&m.zeit&&Math.abs(m.zeit-p.k.zeit)>600))return false;
-  p.rx=m.x;p.ry=m.y;p.rds=1/m.spmm;
+  p.rx=m.x;p.ry=gleit(m.x,m.y,GLAETT_MM);p.rds=1/m.spmm;
   auswerten(p);spaeterAktualisieren();
   return true;
 }
@@ -631,17 +631,21 @@ function interp(s,f,x){
   while(hi-lo>1){const m=(lo+hi)>>1;if(s[m]<=x)lo=m;else hi=m;}
   return s[hi]===s[lo]?f[lo]:f[lo]+(f[hi]-f[lo])*(x-s[lo])/(s[hi]-s[lo]);
 }
-// gleitendes Mittel über eine Wegbreite b (s aufsteigend)
+// gleitendes Mittel über eine Wegbreite b (s aufsteigend); ungültige Werte (NaN) zählen nicht und bleiben NaN
 function gleit(s,f,b){
-  const n=s.length,o=new Float64Array(n);
-  let lo=0,hi=0,sum=0;
+  const n=s.length,o=new Float32Array(n);
+  let lo=0,hi=0,sum=0,k=0;
   for(let i=0;i<n;i++){
-    while(hi<n&&s[hi]<=s[i]+b/2){sum+=f[hi];hi++;}
-    while(s[lo]<s[i]-b/2){sum-=f[lo];lo++;}
-    o[i]=sum/(hi-lo);
+    while(hi<n&&s[hi]<=s[i]+b/2){if(isFinite(f[hi])){sum+=f[hi];k++;}hi++;}
+    while(s[lo]<s[i]-b/2){if(isFinite(f[lo])){sum-=f[lo];k--;}lo++;}
+    o[i]=isFinite(f[i])&&k?sum/k:NaN;
   }
   return o;
 }
+// Glättung aller Kurven auf der Pressseite (Anzeige und Auswertung): genau eine Periode der Kraftwelligkeit
+// des Antriebs (40 Schritte bei 800 Schritten/mm = 1/100 Umdrehung der 5-mm-Spindel), die sich so herausmittelt.
+// Die Kennwerte des Pico (Fmax, Fmittel, ...) bleiben ungeglättet.
+const GLAETT_MM=0.05;
 function auswerten(p){
   const k=p.k,a={};
   p.a=a;
@@ -654,16 +658,15 @@ function auswerten(p){
     if(w>=0){s.push(w);fr.push(Y[i]);}
   }
   if(s.length<5)return;
-  // Rohkurve auf die Breite eines Pico-Abschnitts mitteln: Kennwerte bleiben mit Pico-Kurven vergleichbar,
-  // die Wege (Fügekraft, Spitze, Abfall) werden genauer
-  const f=p.rx?gleit(s,fr,k.d):fr;
+  // beide Kurven sind schon über GLAETT_MM geglättet: Kennwerte bleiben vergleichbar,
+  // mit Rohkurve werden die Wege (Fügekraft, Spitze, Abfall) genauer
+  const f=fr;
   const L=(k.endMm-AW.ende)-k.kontaktMm;                 // Fügetiefe (ohne Anschlag)
   a.L=L;
   if(!(L>0))return;
   const ds=p.rx?p.rds:Math.max(k.d,1e-4);
-  // geglättet (gleitendes Mittel über 5 Pico-Abschnitte) für Spitze und Abfall
-  const g=p.rx?gleit(s,fr,5*k.d):
-    f.map((_,i)=>{let sum=0,n=0;for(let j=Math.max(0,i-2);j<=Math.min(f.length-1,i+2);j++){sum+=f[j];n++;}return sum/n;});
+  // Spitze und Abfall: die Glättung über GLAETT_MM reicht (früher 5 Pico-Abschnitte = 0,031 mm)
+  const g=f;
   // Fügekraft: Maximum bis vor den Anschlag
   let fm=-Infinity,sm=NaN;
   for(let i=0;i<s.length&&s[i]<=L;i++)if(f[i]>fm){fm=f[i];sm=s[i];}
@@ -1043,7 +1046,7 @@ function zeichnen(){
     }
   }
   const lv=liveVersatz();
-  if(live.lauf&&live.y.length&&isFinite(lv))linie(live.y.map((_,i)=>live.s+i*live.d),live.y,lv,st.getPropertyValue("--warn"),2.2,false);
+  if(live.lauf&&live.y.length&&isFinite(lv)){const lx=live.y.map((_,i)=>live.s+i*live.d);linie(lx,gleit(lx,live.y,GLAETT_MM),lv,st.getPropertyValue("--warn"),2.2,false);}
   ctx.restore();
 }
 function mausWerte(e,g,el){const r=el.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;

@@ -383,9 +383,11 @@ analysis and the export run in the browser.
   force and phase of every sample.
 - Raw data only exists in the browser that was open during the press. If it is missing (page closed, WLAN gap longer
   than the buffer), the page automatically uses the Pico curve.
-- The analysis indicators are averaged over the same path width (one Pico segment) for both sources,
-  so that session statistics and trend stay comparable. The positions (e.g. path of the joining force) become more
-  precise with raw data.
+- The press page smooths both sources for display and analysis with a moving average over **0.05 mm** of path.
+  That is exactly one period of the drive's force ripple (40 steps at 800 steps/mm = 1/100 revolution of the 5 mm
+  screw), which averages out this way. Session statistics and trend stay comparable, and the positions (e.g. path
+  of the joining force) become more precise with raw data. The Pico's indicators (Fmax, Fmean, …) and the raw data
+  CSV stay unsmoothed.
 - Clearing browser data also removes the raw data. Save important presses as "Raw data CSV".
 
 ### Analysis ("Analysis" card)

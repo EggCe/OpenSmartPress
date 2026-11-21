@@ -376,9 +376,11 @@ Auswertung und der Export laufen im Browser.
   Kraft und Phase jedes Messwerts.
 - Rohdaten gibt es nur in dem Browser, der während der Pressung offen war. Fehlen sie (Seite zu, WLAN-Lücke länger
   als der Puffer), nutzt die Seite automatisch die Pico-Kurve.
-- Die Kennwerte der Auswertung werden mit beiden Quellen auf derselben Wegbreite gemittelt (ein Pico-Abschnitt),
-  damit Sitzungsstatistik und Trend vergleichbar bleiben. Die Positionen (z. B. Weg der Fügekraft) werden mit
-  Rohdaten genauer.
+- Die Pressseite glättet beide Quellen für Anzeige und Auswertung mit einem gleitenden Mittel über **0,05 mm**
+  Weg. Das ist genau eine Periode der Kraftwelligkeit des Antriebs (40 Schritte bei 800 Schritten/mm =
+  1/100 Umdrehung der 5-mm-Spindel), die sich so herausmittelt. Sitzungsstatistik und Trend bleiben so
+  vergleichbar, die Positionen (z. B. Weg der Fügekraft) werden mit Rohdaten genauer. Die Kennwerte des Pico
+  (Fmax, Fmittel, …) und die Rohdaten-CSV bleiben ungeglättet.
 - Browserdaten löschen entfernt auch die Rohdaten. Wichtige Pressungen als „Rohdaten CSV“ sichern.
 
 ### Auswertung (Karte „Auswertung“)
