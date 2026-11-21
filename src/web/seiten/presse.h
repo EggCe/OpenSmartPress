@@ -100,6 +100,13 @@ letter-spacing:.9px;text-transform:uppercase}
 .pgrid3{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:0 14px}
 @media (max-width:900px){.pgrid,.pgrid2,.pgrid3{grid-template-columns:1fr}}
 button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
+.pgruppen{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px 22px}
+.pgr .grp{padding:0;margin-bottom:8px}
+.pfeld{display:grid;grid-template-columns:minmax(0,1fr) 86px 34px;gap:7px 8px;align-items:center}
+.pfeld input[type=number]{width:100%;box-sizing:border-box;text-align:right}
+.pfeld span{color:var(--leise);font-size:12px;white-space:nowrap}
+span.fehler{color:var(--fehler)}
+input.ungueltig{border-color:var(--fehler);box-shadow:0 0 0 3px rgba(var(--fr),.2)}
 #trend{width:100%;height:240px;display:block;cursor:pointer}
 .details{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-variant-numeric:tabular-nums}
 .details dt{color:var(--leise)}
@@ -273,14 +280,36 @@ td .chip,td button{padding:2px 9px;font-size:12px}
 <div class="pgrid2 einr" id="bParameter">
   <div class="karte">
     <div class="titel">Pressparameter</div>
-    <div class="leiste">
-      <label>Pressen ab [mm über Endpunkt, max. 10] <input type="number" id="pAnfahrt" min="0" max="10" step="0.1"></label>
-      <label>Pressgeschw. [mm/s] <input type="number" id="pVpress" min="0.01" max="20" step="0.01"></label>
-      <label>Haltezeit [ms] <input type="number" id="pHalt" min="0" max="60000" step="100"></label>
-      <label title="Bei dieser Kraft hält der Motor sofort an (Pressung, Kalibrierung, Fahrt). Höchstens Nennlast."><span>Maximalkraft [<span class="fe">N</span>]</span> <input type="number" id="pFmax" min="0" step="any"></label>
-      <label title="Laständerung, ab der beim Kalibrieren und Pressen ein Kontakt erkannt wird"><span>Kontakt ab [<span class="fe">N</span>]</span> <input type="number" id="pKontakt" min="0" step="any"></label>
+    <div class="pgruppen">
+      <div class="pgr"><div class="grp">Weg über dem Endpunkt</div>
+        <div class="pfeld">
+          <label for="pAnfahrt" title="Ab so vielen mm über dem Werkzeug-Endpunkt wird mit Pressgeschwindigkeit gepresst – etwas höher als die Oberkante des Werkstücks wählen">Pressen ab</label>
+          <input type="number" id="pAnfahrt" min="0" max="10" step="0.1"><span>mm</span>
+          <label for="pKalRueck" title="Nach dem Hub-Kalibrieren so weit über den Werkzeug-Endpunkt zurückfahren – dort liegt dann die Startposition der Pressungen. 0 = zurück zur Position vor dem Kalibrieren">Rückstellweg nach Kalibrieren</label>
+          <input type="number" id="pKalRueck" min="0" max="45" step="0.5"><span>mm</span>
+        </div></div>
+      <div class="pgr"><div class="grp">Geschwindigkeit</div>
+        <div class="pfeld">
+          <label for="pVanfahrt" title="Von der Startposition bis „Pressen ab“">Anfahrt</label>
+          <input type="number" id="pVanfahrt" min="0.1" max="50" step="0.1"><span>mm/s</span>
+          <label for="pVpress" title="Von „Pressen ab“ bis zum kalibrierten Endpunkt (Aufzeichnung)">Pressen</label>
+          <input type="number" id="pVpress" min="0.01" max="20" step="0.01"><span>mm/s</span>
+          <label for="pVrueck" title="Nach dem Pressen zurück zur Startposition">Rückfahrt</label>
+          <input type="number" id="pVrueck" min="0.1" max="50" step="0.1"><span>mm/s</span>
+        </div></div>
+      <div class="pgr"><div class="grp">Kraft und Zeit</div>
+        <div class="pfeld">
+          <label for="pKontakt" title="Laständerung, ab der beim Kalibrieren und Pressen ein Kontakt erkannt wird">Kontakt ab</label>
+          <input type="number" id="pKontakt" min="0" step="any"><span class="fe">N</span>
+          <label for="pFmax" title="Bei dieser Kraft hält der Motor sofort an (Pressung, Kalibrierung, Fahrt). Höchstens Nennlast.">Maximalkraft</label>
+          <input type="number" id="pFmax" min="0" step="any"><span class="fe">N</span>
+          <label for="pHalt" title="So lange bleibt der Presskopf am Endpunkt stehen (wird mit aufgezeichnet)">Haltezeit</label>
+          <input type="number" id="pHalt" min="0" max="60000" step="100"><span>ms</span>
+        </div></div>
     </div>
-    <div class="knoepfe"><button class="sendet" id="pSetzen">Übernehmen</button><button data-c="s" title="Alle Einstellungen dauerhaft speichern (Befehl s)">Im Flash speichern</button></div>
+    <div class="knoepfe"><button class="primaer sendet" id="pSetzen" disabled title="Geänderte Werte an den Pico senden (Taste Enter)">Übernehmen</button>
+      <button id="pVerwerfen" disabled title="Geänderte Werte zurücksetzen">Verwerfen</button>
+      <button class="sendet" id="pSpeichern" title="Geänderte Werte übernehmen und alle Einstellungen dauerhaft speichern (Befehl s)">Im Flash speichern</button></div>
     <div class="sub" id="pInfo">&nbsp;</div>
   </div>
   <div class="karte">
@@ -1307,30 +1336,65 @@ $("sim").onchange=async e=>{
 // ---------- Parameter ----------
 // [Feld, mp-Name, Wert aus S.par, Anzeige -> Pico-Einheit]; Kräfte: Anzeige in der gewählten Einheit, Pico in Gramm
 const G_PRO_N=1/0.00980665;
-const PFELD=[["pAnfahrt","anfahrt",p=>p.anfahrt,v=>v],["pVpress","vpress",p=>p.vpress,v=>v],["pHalt","halt",p=>p.halt,v=>v],
+const PFELD=[["pAnfahrt","anfahrt",p=>p.anfahrt,v=>v],["pKalRueck","kalrueck",p=>p.kalrueck,v=>v],
+  ["pVanfahrt","vanfahrt",p=>p.vanfahrt,v=>v],["pVpress","vpress",p=>p.vpress,v=>v],["pVrueck","vrueck",p=>p.vrueck,v=>v],
+  ["pKontakt","kontakt",p=>+kr(p.kontakt).toFixed(E.d+1),v=>Math.round(v/E.f*G_PRO_N)],
   ["pFmax","fmax",p=>+kr(p.fmax).toFixed(E.d),v=>Math.round(v/E.f*G_PRO_N)],
-  ["pKontakt","kontakt",p=>+kr(p.kontakt).toFixed(E.d+1),v=>Math.round(v/E.f*G_PRO_N)]];
+  ["pHalt","halt",p=>p.halt,v=>v]];
+// Eingabe lesen: Zahl oder NaN (leer, außerhalb min/max)
+function pWert(el){
+  const v=parseFloat(String(el.value).replace(",","."));
+  if(!isFinite(v))return NaN;
+  if(el.min!==""&&v<+el.min)return NaN;
+  if(el.max!==""&&v>+el.max)return NaN;
+  return v;
+}
+// Wert, der nach „Übernehmen“ gilt (geändertes Feld, sonst Pico)
+function pKuenftig(id){const el=$(id),f=PFELD.find(x=>x[0]===id);return el.classList.contains("geaendert")?pWert(el):f[2](S.par);}
 function parameterZeigen(neuEinheit){
+  if(!S)return;
   const p=S.par;
   document.querySelectorAll(".fe").forEach(e=>{e.textContent=E.n;});
   for(const [id,,wert] of PFELD){
     const el=$(id);
-    if(neuEinheit){el.classList.remove("geaendert");}
-    if(document.activeElement!==el&&!el.classList.contains("geaendert"))el.value=wert(p);
+    if(neuEinheit)el.classList.remove("geaendert");
+    if(document.activeElement!==el&&!el.classList.contains("geaendert")){const w=wert(p);el.value=w===undefined||!isFinite(w)?"":w;}
+    el.classList.toggle("ungueltig",el.classList.contains("geaendert")&&!isFinite(pWert(el)));
   }
-  const offen=PFELD.some(([id])=>$(id).classList.contains("geaendert"));
-  $("pInfo").innerHTML=(offen?'<span class="warn">'+T("Geänderte Werte (markiert) erst mit „Übernehmen“ senden.")+'</span> ':'')+
-    T("Eilgang {0} mm/s. Übernommene Werte gelten bis zum Neustart; dauerhaft mit „Im Flash speichern“.",fmt(p.vfahrt,1));
+  const offen=PFELD.filter(([id])=>$(id).classList.contains("geaendert")).length;
+  const falsch=PFELD.some(([id])=>$(id).classList.contains("ungueltig"));
+  $("pSetzen").disabled=!offen||falsch;
+  $("pVerwerfen").disabled=!offen;
+  const h=[];
+  if(falsch)h.push('<span class="fehler">'+T("Rot markierte Werte liegen außerhalb des erlaubten Bereichs.")+'</span>');
+  else if(offen)h.push('<span class="warn">'+T("{0} geänderte Werte (markiert) – mit „Übernehmen“ senden.",offen)+'</span>');
+  const kr2=pKuenftig("pKalRueck"),an=pKuenftig("pAnfahrt");
+  if(kr2>0&&an>0&&kr2<an)h.push('<span class="warn">'+T("Rückstellweg liegt unter „Pressen ab“: die Pressung beginnt dann ohne Anfahrt.")+'</span>');
+  h.push(T("Übernommene Werte gelten bis zum Neustart; dauerhaft mit „Im Flash speichern“."));
+  $("pInfo").innerHTML=h.join(" ");
 }
-for(const [id] of PFELD)$(id).oninput=e=>{e.target.classList.add("geaendert");if(S)parameterZeigen();};
-$("pSetzen").onclick=async()=>{
-  for(const [id,name,,umr] of PFELD){                       // nur geänderte Werte schicken
+async function pUebernehmen(){
+  for(const [id,name,,umr] of PFELD){                       // nur geänderte, gültige Werte schicken
     const el=$(id);if(!el.classList.contains("geaendert"))continue;
-    const v=parseFloat(String(el.value).replace(",","."));
+    const v=pWert(el);
+    if(!isFinite(v))continue;
     el.classList.remove("geaendert");
-    if(isFinite(v))await befehl("mp "+name+" "+umr(v));
+    await befehl("mp "+name+" "+umr(v));
   }
-  if(S)parameterZeigen();
+  parameterZeigen();
+}
+function pVerwerfen(){for(const [id] of PFELD)$(id).classList.remove("geaendert","ungueltig");parameterZeigen();}
+for(const [id] of PFELD){
+  const el=$(id);
+  el.oninput=()=>{el.classList.add("geaendert");parameterZeigen();};
+  el.onkeydown=e=>{if(e.key==="Enter"&&!$("pSetzen").disabled){e.preventDefault();pUebernehmen();}};   // Esc bleibt STOPP
+}
+$("pSetzen").onclick=pUebernehmen;
+$("pVerwerfen").onclick=pVerwerfen;
+$("pSpeichern").onclick=async()=>{
+  if(PFELD.some(([id])=>$(id).classList.contains("ungueltig"))){parameterZeigen();return;}
+  await pUebernehmen();
+  befehl("s");
 };
 
 // ---------- Protokoll ----------

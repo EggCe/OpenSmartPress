@@ -101,6 +101,7 @@ static antrieb::Param antriebParam() {
   p.accMmS2       = mot.accMmS2;
   p.hubMm         = mot.hubMm;
   p.ueberSchritte = mot.ueberSchritte;
+  p.kalRueckSchritte = (int32_t)lroundf(mot.kalRueck100 * 0.01f * mot.schritteProMm);
   const double fa = fabs((double)cfg.faktor);
   p.tara          = (int32_t)lround(cfg.tara);
   p.vorzeichen    = (cfg.faktor < 0.0f) ? -1 : 1;
@@ -111,6 +112,8 @@ static antrieb::Param antriebParam() {
   p.presseAnfahrt = -(int32_t)lroundf(pres.anfahrtMm * mot.schritteProMm);
   p.presseEnde    = mot.kalEnde;
   p.vPressMmS     = pres.vPressMmS;
+  p.vAnfahrtMmS   = pres.vAnfahrtMmS;
+  p.vRueckMmS     = pres.vRueckMmS;
   p.haltMs        = pres.haltMs;
   p.simulation     = simulation ? 1 : 0;
   p.countsProGramm = (float)fa;
@@ -210,7 +213,12 @@ void antriebEreignisse() {
         if (e.b > 0) {
           meld.printf("# Steifigkeit:                 %.2f kg/mm\n", (mot.kalKraftG / 1000.0) / (e.b / spmm));
         }
-        meld.println(F("# Antrieb steht wieder auf der Startposition. Mit 's' speichern."));
+        if (mot.kalRueck100 > 0 && mot.kalRueck100 * 0.01f < e.a / spmm) {
+          meld.printf("# Antrieb steht %.2f mm ueber dem Werkzeug-Endpunkt ('mp kalrueck'). Mit 's' speichern.\n",
+                      mot.kalRueck100 * 0.01f);
+        } else {
+          meld.println(F("# Antrieb steht wieder auf der Startposition. Mit 's' speichern."));
+        }
         meld.println(F("# =========================================================="));
         break;
       }
@@ -339,12 +347,16 @@ void motorParameter(const char *name, const char *wert) {
     meld.printf("#  acc     %10.1f  mm/s^2 Beschleunigung\n", mot.accMmS2);
     meld.printf("#  hub     %10.1f  mm maximaler Suchweg (nutzbarer Hub)\n", mot.hubMm);
     meld.printf("#  ueber   %10ld  Schritte Ueberlauf nach dem Kontakt\n", (long)mot.ueberSchritte);
+    meld.printf("#  kalrueck %9.2f  mm ueber dem Werkzeug-Endpunkt nach dem Kalibrieren (0 = zur Startposition)\n",
+                mot.kalRueck100 * 0.01f);
     meld.printf("#  kontakt %10.0f  g Lastaenderung, die als Kontakt gilt\n", mot.kontaktG);
     meld.printf("#  fmax    %10.0f  g Maximalkraft, Abwaertsfahrt stoppt sofort (wirksam: %.0f g)\n", mot.maxKraftG, motorMaxKraftG());
     meld.printf("#  anfahrt %10.2f  mm ueber dem Werkzeug-Endpunkt: bis hier Eilgang, danach Pressgeschwindigkeit (max. %.1f)\n",
                 pres.anfahrtMm, PRESSWEG_MAX_MM);
     meld.printf("#  vpress  %10.3f  mm/s Pressgeschwindigkeit\n", pres.vPressMmS);
     meld.printf("#  halt    %10lu  ms Haltezeit am Endpunkt\n", (unsigned long)pres.haltMs);
+    meld.printf("#  vanfahrt %9.2f  mm/s Pressen: Anfahrt bis zum Anfahrpunkt\n", pres.vAnfahrtMmS);
+    meld.printf("#  vrueck  %10.2f  mm/s Pressen: Rueckfahrt\n", pres.vRueckMmS);
     if (mot.schritteProMm > 0.0f) {
       meld.printf("# Schrittfrequenz: Suche %.0f Hz, Fahrt %.0f Hz (erlaubt 16..20000 Hz)\n",
                   mot.vSuchMmS * mot.schritteProMm, mot.vFahrtMmS * mot.schritteProMm);
@@ -364,12 +376,15 @@ void motorParameter(const char *name, const char *wert) {
   else if (strcmp(name, "vfahrt") == 0)  { ok = ok && w >= 0.1f && w <= 50.0f;    if (ok) mot.vFahrtMmS = w; }
   else if (strcmp(name, "acc") == 0)     { ok = ok && w >= 1.0f && w <= 1000.0f;  if (ok) mot.accMmS2 = w; }
   else if (strcmp(name, "hub") == 0)     { ok = ok && w >= 1.0f && w <= 45.0f;    if (ok) mot.hubMm = w; }
+  else if (strcmp(name, "kalrueck") == 0) { ok = ok && w >= 0.0f && w <= KAL_RUECK_MAX_MM; if (ok) mot.kalRueck100 = (uint16_t)lroundf(w * 100.0f); }
   else if (strcmp(name, "ueber") == 0)   { ok = ok && w >= 0.0f && w <= 10000.0f; if (ok) mot.ueberSchritte = (int32_t)lroundf(w); }
   else if (strcmp(name, "kontakt") == 0) { ok = ok && w >= 5.0f && w <= 5000.0f;  if (ok) mot.kontaktG = w; }
   else if (strcmp(name, "fmax") == 0)    { ok = ok && w >= 100.0f && w <= NENNLAST_G; if (ok) mot.maxKraftG = w; }
   else if (strcmp(name, "anfahrt") == 0) { ok = ok && w >= 0.0f && w <= PRESSWEG_MAX_MM; if (ok) pres.anfahrtMm = w; }
   else if (strcmp(name, "vpress") == 0)  { ok = ok && w >= 0.01f && w <= 20.0f;   if (ok) pres.vPressMmS = w; }
   else if (strcmp(name, "halt") == 0)    { ok = ok && w >= 0.0f && w <= 60000.0f; if (ok) pres.haltMs = (uint32_t)lroundf(w); }
+  else if (strcmp(name, "vanfahrt") == 0) { ok = ok && w >= PRESSE_V_MIN_MMS && w <= PRESSE_V_MAX_MMS; if (ok) pres.vAnfahrtMmS = w; }
+  else if (strcmp(name, "vrueck") == 0)  { ok = ok && w >= PRESSE_V_MIN_MMS && w <= PRESSE_V_MAX_MMS; if (ok) pres.vRueckMmS = w; }
   else { meld.printf("# Unbekannter Parameter '%s' ('mp' zeigt alle).\n", name); return; }
   if (!ok) { meld.printf("# Ungueltiger Wert fuer '%s' ('mp' zeigt die Bereiche).\n", name); return; }
   if (strcmp(name, "hub") == 0 || strcmp(name, "spmm") == 0) {   // altes Ergebnis passt nicht mehr

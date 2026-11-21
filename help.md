@@ -278,7 +278,9 @@ Werkstück. Nach jedem Einschalten nötig, weil die Position des Motors dann unb
    **Werkzeug-Endpunkt** erreicht. Er wird der neue Nullpunkt.
 3. Weiter bis zum **tatsächlichen Endpunkt**: Kontakt + `ueber` Schritte (Standard 10), oder früher bei `fmax`
    (Standard und Obergrenze 50 kg).
-4. Zurück zur Startposition. Im Protokoll stehen Kontakttiefe, Endpunkt, Kraft am Endpunkt und die Steifigkeit in kg/mm.
+4. Zurück zur Startposition oder, mit `mp kalrueck <mm>` (0–45, Standard 0 = Startposition), nur bis so viele mm
+   über den Werkzeug-Endpunkt – höchstens bis zur Startposition. Dort beginnen dann die Pressungen; den Wert
+   größer als „Pressen ab“ (`anfahrt`) wählen, sonst entfällt die Anfahrt. Im Protokoll stehen Kontakttiefe, Endpunkt, Kraft am Endpunkt und die Steifigkeit in kg/mm.
 
 Ohne Lastanstieg im ganzen Hub bricht die Fahrt mit „kein Kontakt“ ab. Bei jedem Abbruch bleibt der Motor an der
 Abbruchstelle stehen; mit `mot auf <mm>` wieder hochfahren.
@@ -304,10 +306,11 @@ Simulation wird nicht geprüft.
 | `ena` | 0 unbenutzt, 1 Opto an = Motor aus, 2 Opto an = Motor ein | 0 |
 | `alm` | 0 aus, 1 Alarm bei LOW, 2 Alarm bei HIGH | 0 |
 | `vsuch` | Geschwindigkeit Kontaktsuche und Überlauf (mm/s) | 1 |
-| `vfahrt` | Geschwindigkeit Tippbetrieb und Rückfahrt (mm/s) | 5 |
+| `vfahrt` | Geschwindigkeit Tippbetrieb und Rückfahrt beim Kalibrieren (mm/s) | 5 |
 | `acc` | Beschleunigung (mm/s²) | 20 |
 | `hub` | maximaler Suchweg (mm, höchstens 45) | 45 |
 | `ueber` | Schritte nach dem Kontakt | 10 |
+| `kalrueck` | Rückstellweg nach dem Kalibrieren: mm über dem Werkzeug-Endpunkt, 0 = zurück zur Startposition | 0 |
 | `kontakt` | Laständerung, die als Kontakt gilt (g) | 100 |
 | `fmax` | Maximalkraft, Abwärtsfahrt stoppt sofort (g, höchstens 50 000) | 50 000 |
 
@@ -331,8 +334,9 @@ Rot/Schwarz oder Blau/Hell. Der Browser merkt sich die Wahl für beide Seiten, e
    und den tatsächlichen Endpunkt und fährt zurück.
 3. **Sitzung wählen oder anlegen** („Sitzung wählen …“: neue Sitzung mit vorgeschlagenem Namen „Charge
    JJJJ-MM-TT“ anlegen oder eine der letzten öffnen). Jede Pressung wird sofort in der aktiven Sitzung gespeichert.
-4. **Werkstück einlegen und START** (Knopf oder Taster): Eilgang bis zum Anfahrpunkt, dann mit Pressgeschwindigkeit
-   bis zum kalibrierten Endpunkt (oder bis zur Maximalkraft), Haltezeit, zurück zum Start.
+4. **Werkstück einlegen und START** (Knopf oder Taster): mit Anfahrgeschwindigkeit bis zum Anfahrpunkt, dann mit
+   Pressgeschwindigkeit bis zum kalibrierten Endpunkt (oder bis zur Maximalkraft), Haltezeit, mit
+   Rückfahrgeschwindigkeit zurück zum Start.
 
 ### Diagramm und Kennwerte
 
@@ -411,18 +415,28 @@ Gespeichert wird immer in N.
 
 Der Weg des Werkstücks ist mechanisch durch eine Anschlagschraube am Presskopf begrenzt (ca. 5 mm). Gepresst und
 aufgezeichnet wird deshalb höchstens **10 mm** über dem kalibrierten Werkzeug-Endpunkt (5 mm Weg plus Reserve,
-`PRESSWEG_MAX_MM` in `src/konfig.h`); darüber fährt der Antrieb im Eilgang.
+`PRESSWEG_MAX_MM` in `src/konfig.h`); darüber fährt der Antrieb mit der Anfahrgeschwindigkeit.
 
 `mp anfahrt <mm>` (0–10, Standard 5): ab so vielen mm über dem Werkzeug-Endpunkt wird mit Pressgeschwindigkeit
 gepresst; etwas höher als die Oberkante des Werkstücks wählen. Ältere gespeicherte Werte über 10 mm werden beim
 Start auf 10 mm begrenzt. Die 960 Punkte der Pico-Kurve liegen bei 5 mm höchstens 5,2 µm, bei 10 mm höchstens
 10,4 µm auseinander – so knapp wie möglich einstellen.
-`mp vpress <mm/s>`: Pressgeschwindigkeit. `mp halt <ms>`: Haltezeit am Endpunkt. Danach `s`.
+`mp vpress <mm/s>`: Pressgeschwindigkeit. `mp halt <ms>`: Haltezeit am Endpunkt.
+`mp vanfahrt <mm/s>` (0,1–50, Standard 3): Anfahrt von der Startposition bis zum Anfahrpunkt.
+`mp vrueck <mm/s>` (0,1–50, Standard 3): Rückfahrt nach dem Pressen. Danach `s`.
 
-Auf der Pressseite (Modus Einrichten) stehen diese Werte unter **Pressparameter**, dazu **Maximalkraft** (`mp fmax`)
-und **Kontakt ab** (`mp kontakt`) in der gewählten Krafteinheit (der Pico rechnet in Gramm). Geänderte Felder sind
-gelb markiert, bis sie mit „Übernehmen“ gesendet sind; es werden nur geänderte Werte gesendet. Dauerhaft erst mit
-„Im Flash speichern“.
+Auf der Pressseite (Modus Einrichten) stehen diese Werte unter **Pressparameter**, in drei Gruppen:
+
+| Gruppe | Felder (Befehl) |
+|---|---|
+| Weg | Pressen ab (`mp anfahrt`), Rückstellweg nach Kalibrieren (`mp kalrueck`) – beide in mm über dem Endpunkt |
+| Geschwindigkeit | Anfahrt (`mp vanfahrt`), Pressen (`mp vpress`), Rückfahrt (`mp vrueck`) in mm/s |
+| Kraft und Zeit | Kontakt ab (`mp kontakt`), Maximalkraft (`mp fmax`) in der gewählten Krafteinheit (der Pico rechnet in Gramm), Haltezeit (`mp halt`) in ms |
+
+Geänderte Felder sind gelb markiert, Werte außerhalb des erlaubten Bereichs rot (dann ist „Übernehmen“ gesperrt).
+„Übernehmen“ (oder Enter im Feld) sendet nur die geänderten Werte, „Verwerfen“ setzt sie auf die Werte des Pico
+zurück. „Im Flash speichern“ übernimmt offene Änderungen und speichert dauerhaft (`s`). Liegt der Rückstellweg unter
+„Pressen ab“, weist die Karte darauf hin.
 
 ### Simulation ohne Motor
 

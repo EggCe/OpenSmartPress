@@ -150,6 +150,6 @@ Folgen für diesen Aufbau:
 - **Weg-Auflösung:** Bei 5 mm Steigung und 1600 ppr ist ein Schritt 3,1 µm, weit feiner als die
   Wiederholgenauigkeit (20–50 µm) – Wegangaben in den Presskurven sind auf etwa ± 0,05 mm genau, dazu kommt die
   elastische Verformung von Rahmen und Wägezelle unter Last.
-- **Geschwindigkeit:** Eilgang und `vpress` höchstens 100 mm/s.
+- **Geschwindigkeit:** Eilgang (`vanfahrt`, `vrueck`, `vfahrt`) und `vpress` höchstens 100 mm/s.
 - Kugelgewindespindeln sind nicht selbsthemmend: Ohne Motorstrom (ENA aus, Not-Aus, Treiberalarm) kann der
   Schlitten bei vertikalem Einbau durch Eigengewicht oder Restkraft nach unten laufen.

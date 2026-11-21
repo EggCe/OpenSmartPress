@@ -336,9 +336,12 @@ static void rampe() {
   restore_interrupts(irq);
 }
 
+// Rückfahrt nach dem Kalibrieren: auf den Rückstellweg über dem Kontakt, höchstens bis zur Startposition
 static void rueckfahrt() {
   zustand = Zustand::ZURUECK;
-  if (!starten(startPos - pos, P.vFahrtMmS)) {
+  int32_t ziel = startPos;
+  if (P.kalRueckSchritte > 0 && kontaktPos - P.kalRueckSchritte > startPos) ziel = kontaktPos - P.kalRueckSchritte;
+  if (!starten(ziel - pos, P.vFahrtMmS)) {
     zustand = Zustand::BEREIT;
     melde(EreignisTyp::KAL_FEHLER, stoppGrund == Stopp::KEIN ? Stopp::BEFEHL : stoppGrund);
   }
@@ -354,7 +357,7 @@ static void presseAbbruch(Stopp g) {
 static void presseRueckfahrt() {
   aufzeichnungPhase = 0;
   zustand = Zustand::PR_ZURUECK;
-  if (!starten(startPos - pos, P.vFahrtMmS)) presseAbbruch(stoppGrund);
+  if (!starten(startPos - pos, P.vRueckMmS)) presseAbbruch(stoppGrund);
 }
 
 static void presseDruecken() {
@@ -532,8 +535,8 @@ static void ausfuehren(BefehlTyp t, int32_t schritte, const Param &p) {
       presseFehlerNachRueck = false;
       if (P.simulation) simWerkstueckEinlegen();         // Simulation: neues Werkstück je Pressung
       if (pos < P.presseAnfahrt && P.presseAnfahrt < P.presseEnde) {
-        zustand = Zustand::PR_ANFAHRT;                   // Eilgang bis zum Anfahrpunkt
-        if (!starten(P.presseAnfahrt - pos, P.vFahrtMmS)) presseAbbruch(stoppGrund);
+        zustand = Zustand::PR_ANFAHRT;                   // Anfahrt bis zum Anfahrpunkt
+        if (!starten(P.presseAnfahrt - pos, P.vAnfahrtMmS)) presseAbbruch(stoppGrund);
       } else {
         presseDruecken();                                // schon unterhalb des Anfahrpunkts
       }

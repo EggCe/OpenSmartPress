@@ -9,6 +9,10 @@ Datenraten von 2,5 bis 30 000 Messungen pro Sekunde lassen sich im Betrieb umsch
 > Status: Testaufbau. Firmware und Weboberfläche laufen, Einstellungen und Grenzwerte sind auf den
 > unten beschriebenen Aufbau zugeschnitten.
 
+**Video:** OpenSmartPress im Einsatz (Klick auf das Bild öffnet YouTube)
+
+[![OpenSmartPress auf YouTube](https://img.youtube.com/vi/wHO0QPex5B8/hqdefault.jpg)](https://www.youtube.com/watch?v=wHO0QPex5B8)
+
 ## Funktionen
 
 - **Dauerbetrieb des ADS1256** (RDATAC) mit DRDY-Interrupt auf einem eigenen Prozessorkern, SPI mit 1,9 MHz,
@@ -202,7 +206,8 @@ Im Eingabefeld der Weboberfläche oder im seriellen Monitor. `h` zeigt alle Befe
 5. **Endpunkt-Kalibrierung** (Hub kalibrieren) mit dem Webknopf oder `mot kal`, Werkzeug liegt auf der Zelle:
    - langsam abwärts, bis die Last um mehr als 100 g steigt: **Werkzeug-Endpunkt** = neuer Nullpunkt,
    - weiter bis Kontakt + 10 Schritte oder bis 50 kg (was zuerst kommt): **tatsächlicher Endpunkt**,
-   - zurück zur Startposition; Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
+   - zurück zur Startposition bzw. mit `mp kalrueck <mm>` auf so viele mm über den Werkzeug-Endpunkt
+     (0 = Startposition, höchstens bis dorthin); Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
 
 Während jeder Abwärtsfahrt prüft Kern 1 jeden Messwert im ADC-Interrupt und stoppt innerhalb eines Schritts.
 Stopp jederzeit mit `x`, der Esc-Taste im Browser, dem STOPP-Knopf oder dem STOPP-Taster.
@@ -213,7 +218,7 @@ Stopp jederzeit mit `x`, der Esc-Taste im Browser, dem STOPP-Knopf oder dem STOP
 | `mot kal` | Endpunkt-Kalibrierung (Hub kalibrieren) |
 | `mot ab <mm>` / `mot auf <mm>` / `mot s <n>` | Tippbetrieb |
 | `mot null` / `mot ein` / `mot aus` | Position 0 setzen, Motorstrom ein/aus |
-| `mp` / `mp <name> <wert>` | Parameter anzeigen/setzen: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax anfahrt vpress halt` |
+| `mp` / `mp <name> <wert>` | Parameter anzeigen/setzen: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax kalrueck anfahrt vpress vanfahrt vrueck halt` |
 
 ### Pressen (Produktion)
 
@@ -223,9 +228,9 @@ Auf der Pressseite `http://waegezelle.local/presse`:
 2. **Hub kalibrieren** (ohne Werkstück, nach jedem Einschalten nötig): Werkzeug-Endpunkt = Weg 0, dazu der
    tatsächliche Endpunkt (Kontakt + `ueber` Schritte bzw. `fmax`).
 3. **Sitzung wählen oder anlegen.**
-4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): Eilgang bis `anfahrt` mm (Standard 5,
+4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): mit `vanfahrt` (Standard 3 mm/s) bis `anfahrt` mm (Standard 5,
    höchstens 10 mm; der Weg ist durch eine Anschlagschraube am Presskopf begrenzt) über dem
-   Werkzeug-Endpunkt, mit `vpress` bis zum **kalibrierten Endpunkt** (früher bei `fmax`), `halt` ms halten, zurück.
+   Werkzeug-Endpunkt, mit `vpress` bis zum **kalibrierten Endpunkt** (früher bei `fmax`), `halt` ms halten, mit `vrueck` (Standard 3 mm/s) zurück.
 
 Jede Pressung wird als Kurve **Kraft über Weg** gezeichnet und sofort im Flash gespeichert (ca. 200 Pressungen).
 Alle Pressungen einer Sitzung liegen übereinander; ein Klick auf eine Kurve oder Tabellenzeile zeigt Spitzenkraft,
@@ -273,6 +278,7 @@ Sitzung aktiv, genug Speicher, Antrieb steht über dem Endpunkt. Fehlt etwas, ne
 | `sit neu <Name>` / `sit wahl <Nr>` / `sit zu` | Sitzung anlegen / öffnen / schließen |
 | `sit loeschen <Nr> ja` | Sitzung löschen |
 | `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt (0–10 mm, Standard 5), Pressgeschwindigkeit, Haltezeit (danach `s`) |
+| `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | Pressen: Anfahrt bis zum Anfahrpunkt und Rückfahrt (0,1–50 mm/s, Standard je 3) |
 
 ### Aufzeichnung am PC über USB
 

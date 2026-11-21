@@ -9,6 +9,10 @@ Data rates from 2.5 to 30 000 samples per second can be switched during operatio
 > Status: test setup. Firmware and web interface work; settings and limits are tailored to the setup
 > described below.
 
+**Video:** OpenSmartPress in action (click the image to open YouTube)
+
+[![OpenSmartPress on YouTube](https://img.youtube.com/vi/wHO0QPex5B8/hqdefault.jpg)](https://www.youtube.com/watch?v=wHO0QPex5B8)
+
 ## Features
 
 - **Continuous ADS1256 operation** (RDATAC) with a DRDY interrupt on a dedicated processor core, SPI at 1.9 MHz,
@@ -207,7 +211,8 @@ In the input field of the web interface or in the serial monitor. `h` shows all 
 5. **End point calibration** (calibrate stroke) with the web button or `mot kal`, tool resting on the cell:
    - slowly down until the load rises by more than 100 g: **tool end point** = new zero point,
    - on to contact + 10 steps or 50 kg (whichever comes first): **actual end point**,
-   - back to the start position; contact depth, end point, force and stiffness are written to the log.
+   - back to the start position, or with `mp kalrueck <mm>` to this many mm above the tool end point
+     (0 = start position, never higher than that); contact depth, end point, force and stiffness are written to the log.
 
 During every downward move, core 1 checks every sample in the ADC interrupt and stops within one step.
 Stop at any time with `x`, the Esc key in the browser, the STOP button or the STOP push-button.
@@ -218,7 +223,7 @@ Stop at any time with `x`, the Esc key in the browser, the STOP button or the ST
 | `mot kal` | end point calibration (calibrate stroke) |
 | `mot ab <mm>` / `mot auf <mm>` / `mot s <n>` | jog mode (`ab` = down, `auf` = up, `s` = steps) |
 | `mot null` / `mot ein` / `mot aus` | set position 0, motor current on/off |
-| `mp` / `mp <name> <value>` | show/set parameters: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax anfahrt vpress halt` |
+| `mp` / `mp <name> <value>` | show/set parameters: `spmm dir inv ena alm vsuch vfahrt acc hub ueber kontakt fmax kalrueck anfahrt vpress vanfahrt vrueck halt` |
 
 ### Pressing (production)
 
@@ -228,9 +233,9 @@ On the press page `http://waegezelle.local/presse`:
 2. **Calibrate stroke** (without workpiece, required after every power-up): tool end point = path 0, plus the
    actual end point (contact + `ueber` steps or `fmax`).
 3. **Select or create a session.**
-4. **Insert the workpiece, START** (button on the page, START push-button or `pr`): rapid traverse to `anfahrt` mm
+4. **Insert the workpiece, START** (button on the page, START push-button or `pr`): with `vanfahrt` (default 3 mm/s) to `anfahrt` mm
    (default 5, at most 10 mm; the path is limited by a stop screw on the press head) above the
-   tool end point, with `vpress` to the **calibrated end point** (earlier at `fmax`), hold for `halt` ms, return.
+   tool end point, with `vpress` to the **calibrated end point** (earlier at `fmax`), hold for `halt` ms, return with `vrueck` (default 3 mm/s).
 
 Each press is drawn as a **force over path** curve and saved to flash immediately (about 200 presses).
 All presses of a session are overlaid; clicking a curve or table row shows peak force, final force, contact,
@@ -279,6 +284,7 @@ session active, enough storage, drive above the end point. If something is missi
 | `sit neu <name>` / `sit wahl <no>` / `sit zu` | create / open / close a session |
 | `sit loeschen <no> ja` | delete a session |
 | `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | approach point (0–10 mm, default 5), press speed, hold time (then `s`) |
+| `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | pressing: approach to the approach point and return (0.1–50 mm/s, default 3 each) |
 
 ### Recording on the PC over USB
 

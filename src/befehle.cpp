@@ -55,7 +55,7 @@ static void zeigeHilfe() {
   meld.println(F("#      mot ab|auf <mm>    Tippbetrieb; 'mot s <n>' = n Schritte (+ ab)"));
   meld.println(F("#      mot null|ein|aus   Position 0 setzen / Motorstrom ein / aus"));
   meld.println(F("#      mot stop           anhalten (auch 'x' und STOPP-Taster)"));
-  meld.println(F("#      mp [name wert]     Antrieb- und Press-Parameter anzeigen bzw. setzen (anfahrt, vpress, halt ...)"));
+  meld.println(F("#      mp [name wert]     Antrieb- und Press-Parameter anzeigen bzw. setzen (anfahrt, vpress, vanfahrt, vrueck, halt, kalrueck ...)"));
   meld.println(F("#      enc [0|aus]        Encoder-Test: EA+/EB+ ueber Teiler an GP10/GP11 mitzaehlen"));
   meld.println(F("#      wlan [an|aus]      WLAN-Status bzw. ein-/ausschalten"));
   meld.println(F("#                         ('wlan aus' fuer Rauschmessungen ohne Funk; danach nur per USB wieder an)"));
