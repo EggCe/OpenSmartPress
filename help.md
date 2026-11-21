@@ -18,7 +18,7 @@ ADS1256 mit PGA 64. Verdrahtung, Datenformate und Dateiaufbau stehen in der [REA
 
 | Einstellung | Wert | Warum |
 |---|---|---|
-| Datenrate | 2000 SPS | Im Rauschvergleich war 2000 SPS mit Mittelung am ruhigsten (σ @10 SPS 0,59 g gegenüber 1,46 g bei 100 SPS). |
+| Datenrate | 2000 SPS | Nach dem Mitteln sind 500–15000 SPS gleich genau (σ @10 SPS 0,4–0,5 g); 2000 SPS liegt darin und belastet Pico und WLAN wenig. |
 | Glättung | 0,5 s | Ruhige Anzeige, reagiert trotzdem nach etwa 0,25 s auf Laständerungen. |
 | Statistik | 2–5 s | Genug Werte für ein stabiles σ, aber kurz genug, um Änderungen zu sehen. |
 | Fenster | 10 s | Zeigt Einschwingen und Drift, ohne dass Details verschwinden. |
@@ -162,15 +162,17 @@ Das zeigt σ @10 SPS.
 | SPS | σ Einzelwert | σ @10 SPS | Geeignet für |
 |---|--:|--:|---|
 | 10–60 | – | – | Langzeitmessung mit wenig Daten. 50 SPS unterdrückt 50-Hz-Netzbrummen besonders gut. |
-| 100 | 25,9 Counts · 2,6 g | 1,46 g | Einfache Anzeige, wenig Datenvolumen. |
-| 1000 | 59,6 Counts · 5,9 g | 1,03 g | Langsame Kraftverläufe. |
-| 2000 | 76,2 Counts · 7,6 g | 0,59 g | **Wiegen und Kalibrieren**, bester Wert im Vergleich. |
-| 3750–7500 | 138,6 Counts · 13,8 g (7500) | – | Schnelle Kraftverläufe, Pressvorgänge. |
-| 15000–30000 | – | – | Nur für sehr kurze Ereignisse (Stöße). Hohe Last für Pico und WLAN. |
+| 100 | 33,0 Counts · 2,8 g | 0,75 g | Einfache Anzeige, wenig Datenvolumen. |
+| 500–1000 | 48,8–63,0 Counts · 4,2–5,4 g | 0,58–0,49 g | Langsame Kraftverläufe. |
+| 2000 | 78,2 Counts · 6,7 g | 0,52 g | **Wiegen und Kalibrieren**: so genau wie die höheren Raten, wenig Last. |
+| 3750–7500 | 106,8–143,5 Counts · 9,2–12,3 g | 0,42–0,47 g | Schnelle Kraftverläufe, Pressvorgänge. |
+| 15000 | 181,7 Counts · 15,6 g | 0,40 g | Sehr kurze Ereignisse (Stöße). Hohe Last für Pico und WLAN. |
+| 30000 | 210,3 Counts · 18,1 g | 0,62 g | Nur wenn nötig – mehr Rauschen nach dem Mitteln, höchste Last. |
 
-Werte aus eigenen Messungen: Rauschvergleich bei 100/1000/2000 SPS und Kalibrierlauf bei 7500 SPS, Faktor
-10,06 Counts/g. Ein einzelner 3-s-Lauf ist eine grobe Schätzung; für belastbare Zahlen `nv 10 2000 100 2000 100`
-laufen lassen.
+Werte aus eigenen Messungen (Rauschvergleich mit eingeschaltetem, stehendem Motor, WLAN an, Faktor
+11,62 Counts/g, je 3 s). Von 500 bis 15000 SPS sinkt das Rauschen beim Mitteln wie bei reinem Zufallsrauschen
+(mit der Wurzel der Anzahl), die Unterschiede liegen in der Messunsicherheit eines 3-s-Laufs (etwa ±13 %).
+Für belastbare Zahlen `nv 10 2000 100 2000 100` laufen lassen.
 
 ---
 
@@ -366,7 +368,7 @@ Die Kennwerte oben rechnet der Pico immer exakt aus **allen** Messwerten. Für d
 | Rohdaten | **jeder einzelne Messwert** mit Zeit (4 µs), Position (1 Motorschritt) und Kraft (1 Count ≈ 0,001 N), inklusive Haltezeit. Die Kurve hat einen Punkt je Motorschritt (z. B. 1/320 mm = 3,1 µm). | im Browser (IndexedDB) |
 
 Feiner als ein Motorschritt geht es nicht, weil der Pico nur die ausgegebenen Schritte kennt (der Encoder bleibt im
-Treiber). Die Kraft ist durch das Rauschen begrenzt (σ ≈ 0,075 N je Einzelwert bei 2000 SPS), nicht durch die
+Treiber). Die Kraft ist durch das Rauschen begrenzt (σ ≈ 0,066 N je Einzelwert bei 2000 SPS, 0,12 N bei 7500 SPS), nicht durch die
 24 Bit des ADC.
 
 #### Rohdaten im Browser

@@ -22,7 +22,7 @@ in the left menu). The log and the Pico's messages stay German; commands are Ger
 
 | Setting | Value | Why |
 |---|---|---|
-| Data rate | 2000 SPS | In the noise comparison, 2000 SPS with averaging was the quietest (σ @10 SPS 0.59 g versus 1.46 g at 100 SPS). |
+| Data rate | 2000 SPS | After averaging, 500–15000 SPS are equally accurate (σ @10 SPS 0.4–0.5 g); 2000 SPS is in that range and puts little load on the Pico and WLAN. |
 | Smoothing | 0.5 s | Steady reading that still reacts to load changes after about 0.25 s. |
 | Statistics | 2–5 s | Enough values for a stable σ, but short enough to see changes. |
 | Window | 10 s | Shows settling and drift without details disappearing. |
@@ -167,14 +167,17 @@ That is what σ @10 SPS shows.
 | SPS | σ single value | σ @10 SPS | Suitable for |
 |---|--:|--:|---|
 | 10–60 | – | – | Long-term measurement with little data. 50 SPS suppresses 50 Hz mains hum particularly well. |
-| 100 | 25.9 counts · 2.6 g | 1.46 g | Simple display, little data volume. |
-| 1000 | 59.6 counts · 5.9 g | 1.03 g | Slow force profiles. |
-| 2000 | 76.2 counts · 7.6 g | 0.59 g | **Weighing and calibrating**, best value in the comparison. |
-| 3750–7500 | 138.6 counts · 13.8 g (7500) | – | Fast force profiles, pressing. |
-| 15000–30000 | – | – | Only for very short events (impacts). High load for Pico and WLAN. |
+| 100 | 33.0 counts · 2.8 g | 0.75 g | Simple display, little data volume. |
+| 500–1000 | 48.8–63.0 counts · 4.2–5.4 g | 0.58–0.49 g | Slow force profiles. |
+| 2000 | 78.2 counts · 6.7 g | 0.52 g | **Weighing and calibrating**: as accurate as the higher rates, little load. |
+| 3750–7500 | 106.8–143.5 counts · 9.2–12.3 g | 0.42–0.47 g | Fast force profiles, pressing. |
+| 15000 | 181.7 counts · 15.6 g | 0.40 g | Very short events (impacts). High load for Pico and WLAN. |
+| 30000 | 210.3 counts · 18.1 g | 0.62 g | Only if needed – more noise after averaging, highest load. |
 
-Values from our own measurements: noise comparison at 100/1000/2000 SPS and a calibration run at 7500 SPS, factor
-10.06 counts/g. A single 3 s run is a rough estimate; for reliable figures run `nv 10 2000 100 2000 100`.
+Values from our own measurements (noise comparison with the motor powered and standing still, WLAN on, factor
+11.62 counts/g, 3 s each). From 500 to 15000 SPS the noise drops with averaging as for pure random noise (with the
+square root of the count); the differences are within the uncertainty of a 3 s run (about ±13 %).
+For reliable figures run `nv 10 2000 100 2000 100`.
 
 ---
 
@@ -372,7 +375,7 @@ The Pico always calculates the indicators above exactly from **all** samples. Th
 | Raw data | **every single sample** with time (4 µs), position (1 motor step) and force (1 count ≈ 0.001 N), including the hold time. The curve has one point per motor step (e.g. 1/320 mm = 3.1 µm). | in the browser (IndexedDB) |
 
 Finer than one motor step is not possible, because the Pico only knows the steps it outputs (the encoder stays in the
-driver). The force is limited by noise (σ ≈ 0.075 N per single value at 2000 SPS), not by the
+driver). The force is limited by noise (σ ≈ 0.066 N per single value at 2000 SPS, 0.12 N at 7500 SPS), not by the
 24 bits of the ADC.
 
 #### Raw data in the browser

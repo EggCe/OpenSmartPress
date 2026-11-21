@@ -295,15 +295,23 @@ Der serielle Monitor muss dabei geschlossen sein. Weboberfläche und PC-Programm
 
 ## Beispielmessung: Rauschen nach Datenrate
 
-Unbelastete Zelle, PGA 64, Faktor 10,06 Counts/g, je 3 s (Befehl `nv 3 100 1000 2000`):
+Unbelastete Zelle in der Presse, Motor eingeschaltet (stehend), WLAN an, PGA 64, Faktor 11,62 Counts/g, je 3 s
+(Rauschvergleich der Weboberfläche bzw. `nv`):
 
 | SPS | σ Einzelwert | σ nach Mittelung auf 10 SPS | effektive Auflösung |
 |---:|---:|---:|---:|
-| 100 | 25,9 Counts (2,57 g) | 1,46 g | 19,3 Bit |
-| 1000 | 59,6 Counts (5,92 g) | 1,03 g | 18,1 Bit |
-| 2000 | 76,2 Counts (7,57 g) | 0,59 g | 17,8 Bit |
+| 100 | 33,0 Counts (2,84 g) | 0,75 g | 19,0 Bit |
+| 500 | 48,8 Counts (4,20 g) | 0,58 g | 18,4 Bit |
+| 1000 | 63,0 Counts (5,42 g) | 0,49 g | 18,0 Bit |
+| 2000 | 78,2 Counts (6,73 g) | 0,52 g | 17,7 Bit |
+| 3750 | 106,8 Counts (9,19 g) | 0,42 g | 17,3 Bit |
+| 7500 | 143,5 Counts (12,35 g) | 0,47 g | 16,8 Bit |
+| 15000 | 181,7 Counts (15,64 g) | 0,40 g | 16,5 Bit |
+| 30000 | 210,3 Counts (18,10 g) | 0,62 g | 16,3 Bit |
 
-Bei hoher Datenrate ist jeder einzelne Wert unruhiger, nach dem Mitteln war 2000 SPS aber am genauesten.
+Bei hoher Datenrate ist jeder einzelne Wert unruhiger, nach dem Mitteln sind 500–15000 SPS aber gleich genau
+(0,4–0,5 g, Unterschiede innerhalb der Unsicherheit eines 3-s-Laufs). Gegenüber einer früheren Messung ohne Motor
+(Faktor 10,06) ist das Rauschen ab 1000 SPS in Counts nur 3–6 % höher: der eingeschaltete Treiber stört kaum.
 Die Werte hängen stark von Aufbau, Versorgung und Umgebung ab.
 
 ## Aufbau der Software

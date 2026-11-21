@@ -301,15 +301,23 @@ The serial monitor must be closed. Web interface and PC program can run at the s
 
 ## Example measurement: noise by data rate
 
-Unloaded cell, PGA 64, factor 10.06 counts/g, 3 s each (command `nv 3 100 1000 2000`):
+Unloaded cell in the press, motor powered (standing still), WLAN on, PGA 64, factor 11.62 counts/g, 3 s each
+(noise comparison in the web UI or `nv`):
 
 | SPS | σ single value | σ after averaging to 10 SPS | effective resolution |
 |---:|---:|---:|---:|
-| 100 | 25.9 counts (2.57 g) | 1.46 g | 19.3 bit |
-| 1000 | 59.6 counts (5.92 g) | 1.03 g | 18.1 bit |
-| 2000 | 76.2 counts (7.57 g) | 0.59 g | 17.8 bit |
+| 100 | 33.0 counts (2.84 g) | 0.75 g | 19.0 bit |
+| 500 | 48.8 counts (4.20 g) | 0.58 g | 18.4 bit |
+| 1000 | 63.0 counts (5.42 g) | 0.49 g | 18.0 bit |
+| 2000 | 78.2 counts (6.73 g) | 0.52 g | 17.7 bit |
+| 3750 | 106.8 counts (9.19 g) | 0.42 g | 17.3 bit |
+| 7500 | 143.5 counts (12.35 g) | 0.47 g | 16.8 bit |
+| 15000 | 181.7 counts (15.64 g) | 0.40 g | 16.5 bit |
+| 30000 | 210.3 counts (18.10 g) | 0.62 g | 16.3 bit |
 
-At a high data rate every single value is noisier, but after averaging 2000 SPS was the most accurate.
+At a high data rate every single value is noisier, but after averaging 500–15000 SPS are equally accurate
+(0.4–0.5 g, differences within the uncertainty of a 3 s run). Compared with an earlier measurement without the motor
+(factor 10.06), the noise from 1000 SPS up is only 3–6 % higher in counts: the powered driver hardly interferes.
 The values depend strongly on the setup, supply and environment.
 
 ## Software structure
