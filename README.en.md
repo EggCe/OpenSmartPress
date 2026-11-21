@@ -212,7 +212,7 @@ In the input field of the web interface or in the serial monitor. `h` shows all 
    - slowly down until the load rises by more than 100 g: **tool end point** = new zero point,
    - on to contact + 10 steps or 50 kg (whichever comes first): **actual end point**,
    - back to the start position, or with `mp kalrueck <mm>` to this many mm above the tool end point
-     (0 = start position, never higher than that); contact depth, end point, force and stiffness are written to the log.
+     (0 = start position, at most the usable stroke `mp hub`, even above the start position); contact depth, end point, force and stiffness are written to the log.
 
 During every downward move, core 1 checks every sample in the ADC interrupt and stops within one step.
 Stop at any time with `x`, the Esc key in the browser, the STOP button or the STOP push-button.
@@ -234,7 +234,7 @@ On the press page `http://waegezelle.local/presse`:
    actual end point (contact + `ueber` steps or `fmax`).
 3. **Select or create a session.**
 4. **Insert the workpiece, START** (button on the page, START push-button or `pr`): with `vanfahrt` (default 3 mm/s) to `anfahrt` mm
-   (default 5, at most 10 mm; the path is limited by a stop screw on the press head) above the
+   (default 5, at most 45 mm, as close above the workpiece as possible) above the
    tool end point, with `vpress` to the **calibrated end point** (earlier at `fmax`), hold for `halt` ms, return with `vrueck` (default 3 mm/s).
 
 Each press is drawn as a **force over path** curve and saved to flash immediately (about 200 presses).
@@ -252,6 +252,8 @@ In the simulation the curves have an insertion peak, and roughly every twelfth p
 
 The **force unit** can be selected above the chart (**N, kg, lbs**) and applies to the chart, indicators, statistics
 and CSV export; the browser remembers the choice. Data is always stored in N, the JSON export stays in N.
+With **Axes …** the range (auto or fixed from/to) and the grid (spacing of the grid lines) can be set separately for
+path and force.
 
 **Curve resolution:** The Pico stores at most 960 path segments over the press path (force averaged per segment).
 If the press page is open during the press, the browser additionally fetches **every single sample**
@@ -283,7 +285,7 @@ session active, enough storage, drive above the end point. If something is missi
 | `sit` | show sessions and storage usage |
 | `sit neu <name>` / `sit wahl <no>` / `sit zu` | create / open / close a session |
 | `sit loeschen <no> ja` | delete a session |
-| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | approach point (0–10 mm, default 5), press speed, hold time (then `s`) |
+| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | approach point (0–45 mm, default 5), press speed, hold time (then `s`) |
 | `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | pressing: approach to the approach point and return (0.1–50 mm/s, default 3 each) |
 
 ### Recording on the PC over USB

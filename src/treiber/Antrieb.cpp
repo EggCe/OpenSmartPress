@@ -336,11 +336,17 @@ static void rampe() {
   restore_interrupts(irq);
 }
 
-// Rückfahrt nach dem Kalibrieren: auf den Rückstellweg über dem Kontakt, höchstens bis zur Startposition
+// Rückfahrt nach dem Kalibrieren: auf den Rückstellweg über dem Kontakt (0 = zur Startposition).
+// Der Rückstellweg darf über der Startposition liegen, höchstens aber den nutzbaren Hub (hubMm) über dem Kontakt.
 static void rueckfahrt() {
   zustand = Zustand::ZURUECK;
   int32_t ziel = startPos;
-  if (P.kalRueckSchritte > 0 && kontaktPos - P.kalRueckSchritte > startPos) ziel = kontaktPos - P.kalRueckSchritte;
+  if (P.kalRueckSchritte > 0) {
+    int32_t r = P.kalRueckSchritte;
+    const int32_t hub = (int32_t)lroundf(P.hubMm * P.schritteProMm);
+    if (r > hub) r = hub;
+    ziel = kontaktPos - r;
+  }
   if (!starten(ziel - pos, P.vFahrtMmS)) {
     zustand = Zustand::BEREIT;
     melde(EreignisTyp::KAL_FEHLER, stoppGrund == Stopp::KEIN ? Stopp::BEFEHL : stoppGrund);

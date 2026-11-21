@@ -166,7 +166,7 @@ void einstellungenStarten() {
   }
 
   if (blockLaden(pres, dateiDa, d.p, PRESSE_EEPROM_ADR, ausEeprom)) {
-    if (pres.anfahrtMm > PRESSWEG_MAX_MM) pres.anfahrtMm = PRESSWEG_MAX_MM;   // alte Werte (bis 45 mm) begrenzen
+    if (pres.anfahrtMm > PRESSWEG_MAX_MM) pres.anfahrtMm = PRESSWEG_MAX_MM;   // Werte außerhalb des erlaubten Bereichs begrenzen
     if (pres.vAnfahrtMmS == 0.0f) pres.vAnfahrtMmS = PRESSE_V_STANDARD_MMS;  // ältere Blöcke: Reservebytes
     if (pres.vRueckMmS == 0.0f)   pres.vRueckMmS   = PRESSE_V_STANDARD_MMS;
   } else {

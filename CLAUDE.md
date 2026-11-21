@@ -113,10 +113,11 @@ translation (see "Bilingual docs and UI" above).
   `presse_web.cpp`); `presse.h` (web page) polls it during a press, stores raw samples + a per-step curve in IndexedDB
   and prefers that curve when `n === PressKopf::proben`. Analysis smooths raw curves to the Pico segment width so
   statistics stay comparable. Format changes must be made in `presse.cpp`, `presse_web.cpp` and the page together.
-- Settings block `PresseEinst` (third block of `/einst.bin`): `anfahrt`, `vpress`, `halt` via `mp`. The workpiece path is
-  limited mechanically (stop screw on the press head): `anfahrt` is capped to `PRESSWEG_MAX_MM` (10 mm = ~5 mm
-  screw path + reserve, default `PRESSWEG_STANDARD_MM` 5 mm, `konfig.h`), older stored values are clamped on load,
-  so the recorded press path is at most 10 mm above the tool endpoint.
+- Settings block `PresseEinst` (third block of `/einst.bin`): `anfahrt`, `vpress`, `halt`, `vanfahrt`, `vrueck` via `mp`.
+  `anfahrt` is capped to `PRESSWEG_MAX_MM` (45 mm = largest stroke, default `PRESSWEG_STANDARD_MM` 5 mm, `konfig.h`;
+  values are clamped on load); the ≤ 960 Pico curve points spread over this path, so it should be set tightly.
+  `mp kalrueck` (`MotorEinst::kalRueck100`) sets where core 1 stops after stroke calibration: that many mm above the
+  contact, at most `hubMm` (may be above the calibration start), 0 = back to the start position.
 
 ### Module conventions
 - Module state is `static` inside its `.cpp`; other modules use functions. Exceptions (shared via `extern`): `ads`,

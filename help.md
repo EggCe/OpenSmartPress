@@ -281,7 +281,8 @@ Werkstück. Nach jedem Einschalten nötig, weil die Position des Motors dann unb
 3. Weiter bis zum **tatsächlichen Endpunkt**: Kontakt + `ueber` Schritte (Standard 10), oder früher bei `fmax`
    (Standard und Obergrenze 50 kg).
 4. Zurück zur Startposition oder, mit `mp kalrueck <mm>` (0–45, Standard 0 = Startposition), nur bis so viele mm
-   über den Werkzeug-Endpunkt – höchstens bis zur Startposition. Dort beginnen dann die Pressungen; den Wert
+   über den Werkzeug-Endpunkt – auch höher als die Startposition, höchstens aber der nutzbare Hub (`mp hub`).
+   Dort beginnen dann die Pressungen; den Wert
    größer als „Pressen ab“ (`anfahrt`) wählen, sonst entfällt die Anfahrt. Im Protokoll stehen Kontakttiefe, Endpunkt, Kraft am Endpunkt und die Steifigkeit in kg/mm.
 
 Ohne Lastanstieg im ganzen Hub bricht die Fahrt mit „kein Kontakt“ ab. Bei jedem Abbruch bleibt der Motor an der
@@ -312,7 +313,7 @@ Simulation wird nicht geprüft.
 | `acc` | Beschleunigung (mm/s²) | 20 |
 | `hub` | maximaler Suchweg (mm, höchstens 45) | 45 |
 | `ueber` | Schritte nach dem Kontakt | 10 |
-| `kalrueck` | Rückstellweg nach dem Kalibrieren: mm über dem Werkzeug-Endpunkt, 0 = zurück zur Startposition | 0 |
+| `kalrueck` | Rückstellweg nach dem Kalibrieren: mm über dem Werkzeug-Endpunkt (höchstens `hub`), 0 = zurück zur Startposition | 0 |
 | `kontakt` | Laständerung, die als Kontakt gilt (g) | 100 |
 | `fmax` | Maximalkraft, Abwärtsfahrt stoppt sofort (g, höchstens 50 000) | 50 000 |
 
@@ -346,6 +347,19 @@ Jede Pressung erscheint als Kurve **Kraft über Weg**; alle Pressungen der Sitzu
 ab dem Werkzeug-Endpunkt: Das Werkstück berührt also bei einem negativen Weg. Ein Klick auf eine Kurve oder eine
 Tabellenzeile zeigt ihre Kennwerte und die Abweichung zum Mittel der Sitzung.
 
+**Achsen …** (über dem Diagramm) stellt für Weg und Kraft getrennt ein:
+
+| Einstellung | Auto | Fest |
+|---|---|---|
+| Bereich | passt sich an die gezeigten Kurven an (wie bisher) | „von“ und „bis“, Weg in mm, Kraft in der gewählten Krafteinheit |
+| Raster | Abstand der Gitterlinien automatisch (etwa 8 bzw. 5 Teilungen) | fester Abstand, z. B. 0,05 mm (eine Periode der Antriebswelligkeit) oder 5 N |
+
+Bei festem Raster sind nur runde Werte beschriftet, die übrigen Linien blass; ein Raster, das für die
+Diagrammbreite zu fein ist, wird automatisch vergröbert. Der feste Wegbereich gilt je Wegbezug (ab Kontakt /
+ab Werkzeug-Endpunkt), beim Wechsel der Krafteinheit wird der Kraftbereich umgerechnet und das Kraftraster
+springt auf Auto. Mausrad (zoomen) und Ziehen (verschieben) wirken weiterhin, Doppelklick kehrt zur Einstellung
+zurück. Der Knopf ist hervorgehoben, solange etwas nicht auf Auto steht; der Browser merkt sich die Einstellung.
+
 Status **abgeschlossen** heißt: Die Pressung lief ohne Abbruch bis zum Ende. Das ist **keine** Gut/Schlecht-Aussage
 über das Teil – dafür Kennwerte, Rissverdacht und Trend prüfen.
 
@@ -364,7 +378,7 @@ Die Kennwerte oben rechnet der Pico immer exakt aus **allen** Messwerten. Für d
 
 | Quelle | Auflösung | Wo gespeichert |
 |---|---|---|
-| Pico-Kurve | höchstens 960 Wegabschnitte über den Pressweg (Anfahrpunkt bis Endpunkt, höchstens 10 mm, Standard 5 mm), Kraft je Abschnitt gemittelt, 0,02 N Stufen. Beispiel: 5 mm Pressweg bei 320 Schritten/mm → 2 Schritte = 6,25 µm je Punkt. | Flash des Pico (immer) |
+| Pico-Kurve | höchstens 960 Wegabschnitte über den Pressweg (Anfahrpunkt bis Endpunkt, höchstens 45 mm, Standard 5 mm), Kraft je Abschnitt gemittelt, 0,02 N Stufen. Beispiel: 5 mm Pressweg bei 320 Schritten/mm → 2 Schritte = 6,25 µm je Punkt. | Flash des Pico (immer) |
 | Rohdaten | **jeder einzelne Messwert** mit Zeit (4 µs), Position (1 Motorschritt) und Kraft (1 Count ≈ 0,001 N), inklusive Haltezeit. Die Kurve hat einen Punkt je Motorschritt (z. B. 1/320 mm = 3,1 µm). | im Browser (IndexedDB) |
 
 Feiner als ein Motorschritt geht es nicht, weil der Pico nur die ausgegebenen Schritte kennt (der Encoder bleibt im
@@ -415,14 +429,14 @@ Gespeichert wird immer in N.
 
 ### Einstellungen
 
-Der Weg des Werkstücks ist mechanisch durch eine Anschlagschraube am Presskopf begrenzt (ca. 5 mm). Gepresst und
-aufgezeichnet wird deshalb höchstens **10 mm** über dem kalibrierten Werkzeug-Endpunkt (5 mm Weg plus Reserve,
-`PRESSWEG_MAX_MM` in `src/konfig.h`); darüber fährt der Antrieb mit der Anfahrgeschwindigkeit.
+Gepresst und aufgezeichnet wird ab „Pressen ab“ über dem kalibrierten Werkzeug-Endpunkt, höchstens **45 mm**
+(größter Hub, `PRESSWEG_MAX_MM` in `src/konfig.h`); darüber fährt der Antrieb mit der Anfahrgeschwindigkeit.
 
-`mp anfahrt <mm>` (0–10, Standard 5): ab so vielen mm über dem Werkzeug-Endpunkt wird mit Pressgeschwindigkeit
-gepresst; etwas höher als die Oberkante des Werkstücks wählen. Ältere gespeicherte Werte über 10 mm werden beim
-Start auf 10 mm begrenzt. Die 960 Punkte der Pico-Kurve liegen bei 5 mm höchstens 5,2 µm, bei 10 mm höchstens
-10,4 µm auseinander – so knapp wie möglich einstellen.
+`mp anfahrt <mm>` (0–45, Standard 5): ab so vielen mm über dem Werkzeug-Endpunkt wird mit Pressgeschwindigkeit
+gepresst; etwas höher als die Oberkante des Werkstücks wählen. Die 960 Punkte der Pico-Kurve verteilen sich auf
+diesen Weg: bei 5 mm höchstens 5,2 µm, bei 10 mm 10,4 µm, bei 20 mm 20,8 µm, bei 45 mm 46,9 µm Abstand – so knapp
+wie möglich einstellen. Die Rohdaten im Browser haben unabhängig davon einen Punkt je Motorschritt; ein langer
+Pressweg dauert aber entsprechend länger (bei 1 mm/s eine Sekunde je mm).
 `mp vpress <mm/s>`: Pressgeschwindigkeit. `mp halt <ms>`: Haltezeit am Endpunkt.
 `mp vanfahrt <mm/s>` (0,1–50, Standard 3): Anfahrt von der Startposition bis zum Anfahrpunkt.
 `mp vrueck <mm/s>` (0,1–50, Standard 3): Rückfahrt nach dem Pressen. Danach `s`.
@@ -454,7 +468,7 @@ Der Knopf **„Parameter …“** neben dem Schalter öffnet das Simulationsfens
 |---|---|---|---|
 | Pressgeschwindigkeit | `mp vpress <mm/s>` | 1 | wie in den Pressparametern |
 | Werkzeugabstand | `sim werkzeug <mm>` | 15 | virtuelles Werkzeug so weit unter der Position beim Einschalten (= Hub bis zum Werkzeug); ändern setzt das Werkzeug neu, danach Hub kalibrieren |
-| Fügeweg | `sim weg <mm>` | 3 | Höhe des Werkstücks über dem Werkzeug (höchstens 10 mm, höchstens 98 % des Anfahrpunkts) |
+| Fügeweg | `sim weg <mm>` | 3 | Höhe des Werkstücks über dem Werkzeug (höchstens 45 mm, höchstens 98 % des Anfahrpunkts) |
 | Spitzenkraft von / bis | `sim fmin <g>` / `sim fmax <g>` | 25 / 35 kg | zufällige Spitzenkraft je Pressung (im Fenster in kg) |
 | Rauschen | `sim rauschen <g>` | 30 | Rauschen ± in Gramm |
 | Rissquote | `sim riss <%>` | 8,3 | Anteil der Pressungen mit simuliertem Riss (Kraftabfall 15 %) |

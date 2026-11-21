@@ -287,7 +287,8 @@ cell, without workpiece. Required after every power-up, because the motor positi
 3. On to the **actual end point**: contact + `ueber` steps (default 10), or earlier at `fmax`
    (default and upper limit 50 kg).
 4. Back to the start position or, with `mp kalrueck <mm>` (0–45, default 0 = start position), only to this many
-   mm above the tool end point – at most up to the start position. The presses then start there; choose the value
+   mm above the tool end point – even higher than the start position, but at most the usable stroke (`mp hub`).
+   The presses then start there; choose the value
    larger than "Press from" (`anfahrt`), otherwise the approach is skipped. The log shows contact depth, end point, force at the end point and the stiffness in kg/mm.
 
 Without a load rise over the whole stroke, the move aborts with "no contact". On every abort the motor stays at the
@@ -318,7 +319,7 @@ fine for 0.5 s. Not checked in simulation.
 | `acc` | acceleration (mm/s²) | 20 |
 | `hub` | maximum search path (mm, at most 45) | 45 |
 | `ueber` | steps after contact (overtravel) | 10 |
-| `kalrueck` | retract after calibration: mm above the tool end point, 0 = back to the start position | 0 |
+| `kalrueck` | retract after calibration: mm above the tool end point (at most `hub`), 0 = back to the start position | 0 |
 | `kontakt` | load change that counts as contact (g) | 100 |
 | `fmax` | maximum force, downward move stops immediately (g, at most 50 000) | 50 000 |
 
@@ -352,6 +353,19 @@ Each press appears as a **force over path** curve; all presses of the session ar
 from the tool end point: the workpiece is therefore touched at a negative path. Clicking a curve or a
 table row shows its indicators and the deviation from the session mean.
 
+**Axes …** (above the chart) sets path and force separately:
+
+| Setting | Auto | Fixed |
+|---|---|---|
+| Range | fits the curves shown (as before) | "from" and "to", path in mm, force in the selected force unit |
+| Grid | spacing of the grid lines chosen automatically (about 8 or 5 divisions) | fixed spacing, e.g. 0.05 mm (one period of the drive ripple) or 5 N |
+
+With a fixed grid only round values are labelled and the other lines are faint; a grid that is too fine for the
+chart width is coarsened automatically. The fixed path range applies per path reference (from contact / from tool
+end point); when the force unit changes, the force range is converted and the force grid switches to Auto. Mouse
+wheel (zoom) and dragging (pan) still work, a double click returns to the setting. The button is highlighted while
+anything is not on Auto; the browser remembers the setting.
+
 Status **completed** means: the press ran to the end without an abort. This is **not** a good/bad statement
 about the part – check indicators, suspected crack and trend for that.
 
@@ -371,7 +385,7 @@ The Pico always calculates the indicators above exactly from **all** samples. Th
 
 | Source | Resolution | Where stored |
 |---|---|---|
-| Pico curve | at most 960 path segments over the press path (approach point to end point, at most 10 mm, default 5 mm), force averaged per segment, 0.02 N steps. Example: 5 mm press path at 320 steps/mm → 2 steps = 6.25 µm per point. | Pico flash (always) |
+| Pico curve | at most 960 path segments over the press path (approach point to end point, at most 45 mm, default 5 mm), force averaged per segment, 0.02 N steps. Example: 5 mm press path at 320 steps/mm → 2 steps = 6.25 µm per point. | Pico flash (always) |
 | Raw data | **every single sample** with time (4 µs), position (1 motor step) and force (1 count ≈ 0.001 N), including the hold time. The curve has one point per motor step (e.g. 1/320 mm = 3.1 µm). | in the browser (IndexedDB) |
 
 Finer than one motor step is not possible, because the Pico only knows the steps it outputs (the encoder stays in the
@@ -422,14 +436,14 @@ Data is always stored in N.
 
 ### Settings
 
-The workpiece path is limited mechanically by a stop screw on the press head (approx. 5 mm). Pressing and
-recording therefore happen at most **10 mm** above the calibrated tool end point (5 mm path plus reserve,
-`PRESSWEG_MAX_MM` in `src/konfig.h`); above that the drive moves at approach speed.
+Pressing and recording start at "Press from" above the calibrated tool end point, at most **45 mm** (largest
+stroke, `PRESSWEG_MAX_MM` in `src/konfig.h`); above that the drive moves at approach speed.
 
-`mp anfahrt <mm>` (0–10, default 5): from this many mm above the tool end point, pressing happens at press speed;
-choose slightly higher than the top edge of the workpiece. Older stored values above 10 mm are limited to 10 mm at
-start-up. The 960 points of the Pico curve are at most 5.2 µm apart at 5 mm, at most 10.4 µm at 10 mm – set it
-as tightly as possible.
+`mp anfahrt <mm>` (0–45, default 5): from this many mm above the tool end point, pressing happens at press speed;
+choose slightly higher than the top edge of the workpiece. The 960 points of the Pico curve are spread over this
+path: at most 5.2 µm apart at 5 mm, 10.4 µm at 10 mm, 20.8 µm at 20 mm, 46.9 µm at 45 mm – set it as tightly as
+possible. The raw data in the browser has one point per motor step regardless; a long press path takes
+correspondingly longer (one second per mm at 1 mm/s).
 `mp vpress <mm/s>`: press speed. `mp halt <ms>`: hold time at the end point.
 `mp vanfahrt <mm/s>` (0.1–50, default 3): approach from the start position to the approach point.
 `mp vrueck <mm/s>` (0.1–50, default 3): return after pressing. Then `s`.
@@ -461,7 +475,7 @@ The **"Parameters …"** button next to the switch opens the simulation window (
 |---|---|---|---|
 | Press speed | `mp vpress <mm/s>` | 1 | as in the press parameters |
 | Tool distance | `sim werkzeug <mm>` | 15 | virtual tool this far below the position when switching on (= stroke to the tool); changing it resets the tool, then calibrate the stroke |
-| Joining path | `sim weg <mm>` | 3 | height of the workpiece above the tool (at most 10 mm, at most 98 % of the approach point) |
+| Joining path | `sim weg <mm>` | 3 | height of the workpiece above the tool (at most 45 mm, at most 98 % of the approach point) |
 | Peak force from / to | `sim fmin <g>` / `sim fmax <g>` | 25 / 35 kg | random peak force per press (in kg in the window) |
 | Noise | `sim rauschen <g>` | 30 | noise ± in grams |
 | Crack rate | `sim riss <%>` | 8.3 | share of presses with a simulated crack (force drop 15 %) |

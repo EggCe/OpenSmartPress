@@ -213,9 +213,9 @@ void antriebEreignisse() {
         if (e.b > 0) {
           meld.printf("# Steifigkeit:                 %.2f kg/mm\n", (mot.kalKraftG / 1000.0) / (e.b / spmm));
         }
-        if (mot.kalRueck100 > 0 && mot.kalRueck100 * 0.01f < e.a / spmm) {
-          meld.printf("# Antrieb steht %.2f mm ueber dem Werkzeug-Endpunkt ('mp kalrueck'). Mit 's' speichern.\n",
-                      mot.kalRueck100 * 0.01f);
+        if (mot.kalRueck100 > 0) {
+          const float r = fminf(mot.kalRueck100 * 0.01f, mot.hubMm);
+          meld.printf("# Antrieb steht %.2f mm ueber dem Werkzeug-Endpunkt ('mp kalrueck'). Mit 's' speichern.\n", r);
         } else {
           meld.println(F("# Antrieb steht wieder auf der Startposition. Mit 's' speichern."));
         }
@@ -347,7 +347,7 @@ void motorParameter(const char *name, const char *wert) {
     meld.printf("#  acc     %10.1f  mm/s^2 Beschleunigung\n", mot.accMmS2);
     meld.printf("#  hub     %10.1f  mm maximaler Suchweg (nutzbarer Hub)\n", mot.hubMm);
     meld.printf("#  ueber   %10ld  Schritte Ueberlauf nach dem Kontakt\n", (long)mot.ueberSchritte);
-    meld.printf("#  kalrueck %9.2f  mm ueber dem Werkzeug-Endpunkt nach dem Kalibrieren (0 = zur Startposition)\n",
+    meld.printf("#  kalrueck %9.2f  mm ueber dem Werkzeug-Endpunkt nach dem Kalibrieren (0 = zur Startposition, max. hub)\n",
                 mot.kalRueck100 * 0.01f);
     meld.printf("#  kontakt %10.0f  g Lastaenderung, die als Kontakt gilt\n", mot.kontaktG);
     meld.printf("#  fmax    %10.0f  g Maximalkraft, Abwaertsfahrt stoppt sofort (wirksam: %.0f g)\n", mot.maxKraftG, motorMaxKraftG());

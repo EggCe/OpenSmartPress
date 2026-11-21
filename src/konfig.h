@@ -42,17 +42,17 @@ constexpr float    WARNGRENZE_G   = 50000.0f;   // 100 % Nennlast
 constexpr float    ALARMGRENZE_G  = 60000.0f;   // 120 % (sichere Überlast)
 constexpr float    WARN_HYSTERESE = 0.98f;      // Rückfall erst unter 98 % der Grenze
 
-// Pressweg: eine Anschlagschraube am Presskopf begrenzt den Weg des Werkstücks (ca. 5 mm). Gepresst
-// (und aufgezeichnet) wird höchstens so weit über dem kalibrierten Werkzeug-Endpunkt (mit Reserve);
-// darüber Eilgang. Standard für 'mp anfahrt' ist PRESSWEG_STANDARD_MM.
-constexpr float    PRESSWEG_MAX_MM      = 10.0f;
+// Pressweg: gepresst (und aufgezeichnet) wird ab höchstens so weit über dem kalibrierten Werkzeug-Endpunkt
+// ('mp anfahrt', bis zum größten Hub von 45 mm), darüber Anfahrt. Die 960 Punkte der Pico-Kurve verteilen sich
+// auf diesen Weg, daher so knapp wie möglich einstellen. Standard ist PRESSWEG_STANDARD_MM.
+constexpr float    PRESSWEG_MAX_MM      = 45.0f;
 constexpr float    PRESSWEG_STANDARD_MM = 5.0f;
 // Pressvorgang: Geschwindigkeit der Anfahrt bis zum Anfahrpunkt und der Rückfahrt ('mp vanfahrt' / 'mp vrueck')
 constexpr float    PRESSE_V_STANDARD_MMS = 3.0f;
 constexpr float    PRESSE_V_MIN_MMS      = 0.1f;
 constexpr float    PRESSE_V_MAX_MMS      = 50.0f;
 // Hub kalibrieren: nach dem Endpunkt so weit über den Werkzeug-Endpunkt zurückfahren ('mp kalrueck', 0 = zurück
-// zur Startposition). Nie höher als die Startposition der Kalibrierung.
+// zur Startposition). Höchstens der nutzbare Hub ('mp hub'), auch wenn das über der Startposition liegt.
 constexpr float    KAL_RUECK_MAX_MM      = 45.0f;
 
 // Startwert für den Kalibrierfaktor, solange nicht kalibriert wurde:

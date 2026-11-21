@@ -207,7 +207,7 @@ Im Eingabefeld der Weboberfläche oder im seriellen Monitor. `h` zeigt alle Befe
    - langsam abwärts, bis die Last um mehr als 100 g steigt: **Werkzeug-Endpunkt** = neuer Nullpunkt,
    - weiter bis Kontakt + 10 Schritte oder bis 50 kg (was zuerst kommt): **tatsächlicher Endpunkt**,
    - zurück zur Startposition bzw. mit `mp kalrueck <mm>` auf so viele mm über den Werkzeug-Endpunkt
-     (0 = Startposition, höchstens bis dorthin); Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
+     (0 = Startposition, höchstens der nutzbare Hub `mp hub`, auch über der Startposition); Kontakttiefe, Endpunkt, Kraft und Steifigkeit stehen im Protokoll.
 
 Während jeder Abwärtsfahrt prüft Kern 1 jeden Messwert im ADC-Interrupt und stoppt innerhalb eines Schritts.
 Stopp jederzeit mit `x`, der Esc-Taste im Browser, dem STOPP-Knopf oder dem STOPP-Taster.
@@ -229,7 +229,7 @@ Auf der Pressseite `http://waegezelle.local/presse`:
    tatsächliche Endpunkt (Kontakt + `ueber` Schritte bzw. `fmax`).
 3. **Sitzung wählen oder anlegen.**
 4. **Werkstück einlegen, START** (Knopf auf der Seite, START-Taster oder `pr`): mit `vanfahrt` (Standard 3 mm/s) bis `anfahrt` mm (Standard 5,
-   höchstens 10 mm; der Weg ist durch eine Anschlagschraube am Presskopf begrenzt) über dem
+   höchstens 45 mm, so knapp über dem Werkstück wie möglich) über dem
    Werkzeug-Endpunkt, mit `vpress` bis zum **kalibrierten Endpunkt** (früher bei `fmax`), `halt` ms halten, mit `vrueck` (Standard 3 mm/s) zurück.
 
 Jede Pressung wird als Kurve **Kraft über Weg** gezeichnet und sofort im Flash gespeichert (ca. 200 Pressungen).
@@ -247,6 +247,8 @@ In der Simulation haben die Kurven eine Einführspitze, und etwa jede zwölfte P
 
 Die **Krafteinheit** ist über dem Diagramm wählbar (**N, kg, lbs**) und gilt für Diagramm, Kennwerte, Statistik und
 den CSV-Export; der Browser merkt sich die Wahl. Gespeichert wird immer in N, der JSON-Export bleibt in N.
+Mit **Achsen …** lassen sich Bereich (Auto oder fest von/bis) und Raster (Abstand der Gitterlinien) für Weg und
+Kraft getrennt einstellen.
 
 **Auflösung der Kurve:** Der Pico speichert höchstens 960 Wegabschnitte über den Pressweg (Kraft je Abschnitt
 gemittelt). Ist die Pressseite während der Pressung offen, holt der Browser zusätzlich **jeden einzelnen Messwert**
@@ -277,7 +279,7 @@ Sitzung aktiv, genug Speicher, Antrieb steht über dem Endpunkt. Fehlt etwas, ne
 | `sit` | Sitzungen und Speicherbelegung anzeigen |
 | `sit neu <Name>` / `sit wahl <Nr>` / `sit zu` | Sitzung anlegen / öffnen / schließen |
 | `sit loeschen <Nr> ja` | Sitzung löschen |
-| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt (0–10 mm, Standard 5), Pressgeschwindigkeit, Haltezeit (danach `s`) |
+| `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt (0–45 mm, Standard 5), Pressgeschwindigkeit, Haltezeit (danach `s`) |
 | `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | Pressen: Anfahrt bis zum Anfahrpunkt und Rückfahrt (0,1–50 mm/s, Standard je 3) |
 
 ### Aufzeichnung am PC über USB

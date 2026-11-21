@@ -100,6 +100,13 @@ letter-spacing:.9px;text-transform:uppercase}
 .pgrid3{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,420px);gap:0 14px}
 @media (max-width:900px){.pgrid,.pgrid2,.pgrid3{grid-template-columns:1fr}}
 button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
+.achsgitter{display:grid;grid-template-columns:auto 86px 84px 84px 100px;gap:7px 8px;align-items:center;margin-top:12px}
+.achsgitter b{font-size:12px;font-weight:600;color:var(--leise)}
+.achsgitter>span{color:var(--leise);font-size:13px;white-space:nowrap}
+dialog .achsgitter input[type=number],.achsgitter select{width:100%;box-sizing:border-box;min-width:0}
+.achsgitter input:disabled{opacity:.45}
+#achsOeffnen{padding:4px 13px}
+#achsOeffnen.angepasst{border-color:var(--akzent);color:var(--akzent)}
 .pgruppen{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px 22px}
 .pgr .grp{padding:0;margin-bottom:8px}
 .pfeld{display:grid;grid-template-columns:minmax(0,1fr) 86px 34px;gap:7px 8px;align-items:center}
@@ -218,6 +225,7 @@ td .chip,td button{padding:2px 9px;font-size:12px}
         <option value="25">letzte 25</option><option value="50">letzte 50</option></select></label>
       <label><input type="checkbox" id="abbr"> Abbrüche zeigen</label>
       <label><input type="checkbox" id="nurKontakt" checked> ab Kontakt zoomen</label>
+      <button id="achsOeffnen" title="Bereich und Raster der Achsen einstellen (Auto oder fest)">Achsen …</button>
     </div>
     <div class="plotfl" id="plotfl"><canvas id="plot"></canvas>
       <div class="kurz" id="kurz" hidden title="Klick: ein-/ausklappen"></div></div>
@@ -284,8 +292,8 @@ td .chip,td button{padding:2px 9px;font-size:12px}
       <div class="pgr"><div class="grp">Weg über dem Endpunkt</div>
         <div class="pfeld">
           <label for="pAnfahrt" title="Ab so vielen mm über dem Werkzeug-Endpunkt wird mit Pressgeschwindigkeit gepresst – etwas höher als die Oberkante des Werkstücks wählen">Pressen ab</label>
-          <input type="number" id="pAnfahrt" min="0" max="10" step="0.1"><span>mm</span>
-          <label for="pKalRueck" title="Nach dem Hub-Kalibrieren so weit über den Werkzeug-Endpunkt zurückfahren – dort liegt dann die Startposition der Pressungen. 0 = zurück zur Position vor dem Kalibrieren">Rückstellweg nach Kalibrieren</label>
+          <input type="number" id="pAnfahrt" min="0" max="45" step="0.1"><span>mm</span>
+          <label for="pKalRueck" title="Nach dem Hub-Kalibrieren so weit über den Werkzeug-Endpunkt zurückfahren – dort liegt dann die Startposition der Pressungen (höchstens der nutzbare Hub). 0 = zurück zur Position vor dem Kalibrieren">Rückstellweg nach Kalibrieren</label>
           <input type="number" id="pKalRueck" min="0" max="45" step="0.5"><span>mm</span>
         </div></div>
       <div class="pgr"><div class="grp">Geschwindigkeit</div>
@@ -329,7 +337,7 @@ td .chip,td button{padding:2px 9px;font-size:12px}
   <div class="awgitter" style="margin-top:10px">
     <label>Pressgeschwindigkeit [mm/s]</label><input type="number" id="sVpress" min="0.01" max="20" step="0.05">
     <label>Werkzeugabstand (Hub bis zum Werkzeug) [mm]</label><input type="number" id="sWerkzeug" min="1" max="45" step="0.5">
-    <label>Fügeweg (Werkstückhöhe) [mm]</label><input type="number" id="sWeg" min="0.1" max="10" step="0.1">
+    <label>Fügeweg (Werkstückhöhe) [mm]</label><input type="number" id="sWeg" min="0.1" max="45" step="0.1">
     <label>Spitzenkraft von [kg]</label><input type="number" id="sFmin" min="0.1" max="50" step="0.5">
     <label>Spitzenkraft bis [kg]</label><input type="number" id="sFmax" min="0.1" max="50" step="0.5">
     <label>Rauschen ± [g]</label><input type="number" id="sRauschen" min="0" max="2000" step="5">
@@ -341,6 +349,27 @@ td .chip,td button{padding:2px 9px;font-size:12px}
     <button id="simStandard">Standardwerte</button><button id="simZu">Schließen</button></div>
   <div class="sub">Ein geänderter Werkzeugabstand setzt das virtuelle Werkzeug neu: danach Hub kalibrieren.
     Anfahrpunkt und Haltezeit stehen unter „Pressparameter“.</div>
+</dialog>
+<dialog id="achsDlg">
+  <div class="titel">Achsen</div>
+  <div class="sub">Auto passt den Bereich an die gezeigten Kurven an, Fest nutzt „von“ und „bis“. Das Raster ist der
+    Abstand der Gitterlinien. Änderungen wirken sofort; dieser Browser merkt sie sich.</div>
+  <div class="achsgitter">
+    <span></span><b>Bereich</b><b>von</b><b>bis</b><b>Raster</b>
+    <span>Weg [mm]</span>
+    <select id="axModus"><option value="auto">Auto</option><option value="fest">Fest</option></select>
+    <input type="number" id="axVon" step="any"><input type="number" id="axBis" step="any">
+    <select id="axRaster"></select>
+    <span>Kraft [<span class="fe">N</span>]</span>
+    <select id="ayModus"><option value="auto">Auto</option><option value="fest">Fest</option></select>
+    <input type="number" id="ayVon" step="any"><input type="number" id="ayBis" step="any">
+    <select id="ayRaster"></select>
+  </div>
+  <div class="sub" id="achsInfo">&nbsp;</div>
+  <div class="knoepfe" style="margin-top:10px"><button id="achsAuto">Alles auf Auto</button>
+    <button class="primaer" id="achsZu">Schließen</button></div>
+  <div class="sub">Der feste Wegbereich gilt je Wegbezug (ab Kontakt / ab Werkzeug-Endpunkt). Mausrad und Ziehen zoomen
+    weiterhin, ein Doppelklick kehrt zu diesen Einstellungen zurück.</div>
 </dialog>
 <dialog id="sitzDlg">
   <div class="titel">Sitzung wählen</div>
@@ -473,10 +502,11 @@ $("befehl").onkeydown=e=>{if(e.key==="Enter")senden();};
 function senden(){const t=$("befehl").value.trim();if(t){befehl(t);$("befehl").value="";}}
 $("zuSitzungen").onclick=sitzDialog;
 $("zeige").onchange=$("abbr").onchange=$("nurKontakt").onchange=()=>{ansicht=null;neuZeichnen=true;};
-$("xmodus").onchange=()=>{lsSchreiben("wz_xmodus",$("xmodus").value);ansicht=null;neuZeichnen=true;};
+$("xmodus").onchange=()=>{lsSchreiben("wz_xmodus",$("xmodus").value);ansicht=null;neuZeichnen=true;if(typeof achsenSpeichern==="function")achsenSpeichern();};
 $("einheit").onchange=()=>{
   E=EINHEITEN[$("einheit").value]||EINHEITEN.N;
   lsSchreiben("wz_einheit2",$("einheit").value);
+  achsenEinheit();
   ansicht=null;
   anzeigenAktualisieren();listeLaden();if(S){ablaufZeigen();statusZeigen();parameterZeigen(true);}
 };
@@ -997,19 +1027,38 @@ function bereich(ks){
   if(x1-x0<0.01){x0-=0.05;x1+=0.05;}
   if(!(y1>y0))y1=y0+10;
   const px=(x1-x0)*0.03;
-  return {x0:x0-px,x1:x1+px,y0:y0,y1:y1+(y1-y0)*0.08};
+  return achsenAnwenden({x0:x0-px,x1:x1+px,y0:y0,y1:y1+(y1-y0)*0.08});
 }
-function achsen(c,g,xEinheit,yEinheit,xStellen){
+// Beschriftung an jeder k-ten Gitterlinie: kleinstes k, bei dem die Zahlen mind. minPx auseinanderliegen und
+// der Beschriftungsabstand s*k eine runde Zahl (1, 2 oder 5 mal 10^n) ist
+function beschriftungsTeiler(s,pxJeSchritt,minPx){
+  const rund=v=>{const p=Math.pow(10,Math.floor(Math.log10(v)+1e-9)),m=v/p;return [1,2,5,10].some(q=>Math.abs(m-q)<1e-6);};
+  for(let k=1;k<=100000;k++)if(k*pxJeSchritt>=minPx&&rund(s*k))return k;
+  return Math.max(1,Math.ceil(minPx/pxJeSchritt));
+}
+// Nachkommastellen, die ein Beschriftungsabstand braucht (0,25 -> 2, 2,5 -> 1, 5 -> 0)
+function stellen(s){for(let d=0;d<4;d++){const v=s*Math.pow(10,d);if(Math.abs(v-Math.round(v))<1e-6)return d;}return 4;}
+// rx/ry: festes Raster (Abstand der Gitterlinien), 0 = automatisch
+function achsen(c,g,xEinheit,yEinheit,xStellen,rx,ry){
   const st=getComputedStyle(document.documentElement),{L,T,pw,ph,x0,x1,y0,y1}=g;
   const X=v=>L+(v-x0)/(x1-x0)*pw,Y=v=>T+ph-(v-y0)/(y1-y0)*ph;
   c.font="12px system-ui,sans-serif";c.fillStyle=st.getPropertyValue("--leise");c.strokeStyle=st.getPropertyValue("--gitter");c.lineWidth=1;
-  const sx=schrittweite(x1-x0,8),sy=schrittweite(y1-y0,5);
+  let sx=rx>0?rx:schrittweite(x1-x0,8),sy=ry>0?ry:schrittweite(y1-y0,5);
+  while((x1-x0)/sx>Math.max(2,pw/4))sx*=10;                          // höchstens eine Gitterlinie je 4 px
+  while((y1-y0)/sy>Math.max(2,ph/4))sy*=10;
+  // Beschriftung nur an jeder kx-ten (ky-ten) Linie, damit sich die Zahlen nicht überlappen
+  const kx=beschriftungsTeiler(sx,sx/(x1-x0)*pw,56),ky=beschriftungsTeiler(sy,sy/(y1-y0)*ph,22);
+  const linie=(haupt,f)=>{c.globalAlpha=haupt?1:0.45;c.beginPath();f();c.stroke();c.globalAlpha=1;};
   c.textAlign="center";c.textBaseline="top";
-  for(let v=Math.ceil(x0/sx)*sx;v<=x1;v+=sx){const x=X(v);c.beginPath();c.moveTo(x,T);c.lineTo(x,T+ph);c.stroke();
-    c.fillText(fmt(v,xStellen!==undefined?xStellen:(sx<0.01?3:sx<0.1?2:sx<1?1:0)),x,T+ph+5);}
+  for(let i=Math.ceil(x0/sx-1e-9);i*sx<=x1+1e-9;i++){
+    const v=i*sx+0,x=X(v),haupt=i%kx===0;   // +0: keine -0
+    linie(haupt,()=>{c.moveTo(x,T);c.lineTo(x,T+ph);});
+    if(haupt)c.fillText(fmt(v,xStellen!==undefined?xStellen:stellen(sx*kx)),x,T+ph+5);}
   c.textAlign="right";c.textBaseline="middle";
-  for(let v=Math.ceil(y0/sy)*sy;v<=y1;v+=sy){const y=Y(v);c.beginPath();c.moveTo(L,y);c.lineTo(L+pw,y);c.stroke();
-    c.fillText(fmt(v,sy<0.1?2:sy<1?1:0),L-6,y);}
+  for(let i=Math.ceil(y0/sy-1e-9);i*sy<=y1+1e-9;i++){
+    const v=i*sy+0,y=Y(v),haupt=i%ky===0;
+    linie(haupt,()=>{c.moveTo(L,y);c.lineTo(L+pw,y);});
+    if(haupt)c.fillText(fmt(v,stellen(sy*ky)),L-6,y);}
   c.textAlign="center";c.textBaseline="bottom";c.fillText(xEinheit,L+pw/2,c.canvas.clientHeight-1);
   c.save();c.translate(13,T+ph/2);c.rotate(-Math.PI/2);c.textBaseline="top";c.fillText(yEinheit,0,0);c.restore();
   return {X,Y,st};
@@ -1030,7 +1079,8 @@ function zeichnen(){
   const ks=aktuelleKurven();
   const b=ansicht||bereich(ks);
   geo={L,T:T0,pw,ph,...b};
-  const {X,Y,st}=achsen(ctx,geo,abKontakt()?T("Weg ab Kontakt [mm]"):T("Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)"),T("Kraft [{0}]",E.n));
+  const {X,Y,st}=achsen(ctx,geo,abKontakt()?T("Weg ab Kontakt [mm]"):T("Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)"),T("Kraft [{0}]",E.n),
+    undefined,achsX().raster||0,ACHS.y.e===E.n?ACHS.y.raster||0:0);
 
   ctx.save();ctx.beginPath();ctx.rect(L,T0,pw,ph);ctx.clip();
   const a=pressen.get(auswahl);
@@ -1310,6 +1360,76 @@ function simInfo(){
   if(w.fmax>S.par.fmax/0.00980665)t+=" "+T("Hinweis: Spitzenkraft über der Maximalkraft – die Pressung endet früh.");
   $("simInfo").textContent=t;
 }
+// ---------- Achsen des Kraft-Weg-Diagramms ----------
+// je Achse: fest (sonst Auto), von, bis, raster (0 = Auto). Weg je Wegbezug (xk/xe) in mm,
+// Kraft in der Einheit e (beim Einheitenwechsel umgerechnet, das Raster springt auf Auto).
+const RASTER_X=[0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2];
+const RASTER_Y=[0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,100,200,500];
+let ACHS=Object.assign({xk:{},xe:{},y:{}},lsLesen("wz_achsen",{}));
+const achsX=()=>ACHS[abKontakt()?"xk":"xe"];
+const achsOk=a=>a.fest&&isFinite(a.von)&&isFinite(a.bis)&&a.bis>a.von;
+function achsenAnwenden(r){
+  const ax=achsX(),ay=ACHS.y;
+  if(achsOk(ax)){r.x0=ax.von;r.x1=ax.bis;}
+  if(achsOk(ay)&&ay.e===E.n){r.y0=ay.von;r.y1=ay.bis;}
+  return r;
+}
+function achsenSpeichern(){
+  lsSchreiben("wz_achsen",ACHS);
+  const ax=achsX(),ay=ACHS.y;
+  $("achsOeffnen").classList.toggle("angepasst",!!(ax.fest||ax.raster||ay.fest||(ay.e===E.n&&ay.raster)));
+  ansicht=null;neuZeichnen=true;
+}
+function achsenEinheit(){
+  const a=ACHS.y;
+  if(a.e&&a.e!==E.n&&EINHEITEN[a.e]){
+    const f=E.f/EINHEITEN[a.e].f,r=v=>isFinite(v)?+(v*f).toPrecision(4):v;
+    a.von=r(a.von);a.bis=r(a.bis);a.raster=0;
+  }
+  a.e=E.n;
+  achsenSpeichern();
+}
+const zahlText=v=>v.toLocaleString(LOC(),{maximumFractionDigits:3});
+function rasterFuellen(el,werte,einheit,wert){
+  el.innerHTML='<option value="0">'+T("Auto")+'</option>'+werte.map(v=>'<option value="'+v+'">'+zahlText(v)+' '+einheit+'</option>').join("");
+  el.value=werte.includes(wert)?String(wert):"0";
+}
+// Dialog aus ACHS füllen; im Auto-Modus zeigen von/bis den aktuell sichtbaren Bereich
+function achsDlgFuellen(){
+  const ax=achsX(),ay=ACHS.y,g=geo||{x0:0,x1:1,y0:0,y1:10},r=v=>+v.toPrecision(4);
+  document.querySelectorAll(".fe").forEach(e=>{e.textContent=E.n;});
+  for(const [p,a,v0,v1,werte,einh] of [["ax",ax,g.x0,g.x1,RASTER_X,"mm"],["ay",ay,g.y0,g.y1,RASTER_Y,E.n]]){
+    $(p+"Modus").value=a.fest?"fest":"auto";
+    $(p+"Von").value=a.fest&&isFinite(a.von)?a.von:r(v0);
+    $(p+"Bis").value=a.fest&&isFinite(a.bis)?a.bis:r(v1);
+    $(p+"Von").disabled=$(p+"Bis").disabled=!a.fest;
+    rasterFuellen($(p+"Raster"),werte,einh,a.raster||0);
+  }
+  achsInfo();
+}
+function achsInfo(){
+  const h=[];
+  for(const [p,a,n] of [["ax",achsX(),T("Weg")],["ay",ACHS.y,T("Kraft")]]){
+    const falsch=a.fest&&!achsOk(a);
+    $(p+"Von").classList.toggle("ungueltig",falsch);$(p+"Bis").classList.toggle("ungueltig",falsch);
+    if(falsch)h.push(T("{0}: „bis“ muss größer als „von“ sein – bis dahin gilt Auto.",n));
+  }
+  $("achsInfo").innerHTML=h.length?'<span class="warn">'+h.join(" ")+'</span>':"&nbsp;";
+}
+function achsAus(p,a){
+  const zahl=id=>parseFloat(String($(id).value).replace(",","."));
+  a.fest=$(p+"Modus").value==="fest";
+  $(p+"Von").disabled=$(p+"Bis").disabled=!a.fest;
+  if(a.fest){a.von=zahl(p+"Von");a.bis=zahl(p+"Bis");}
+  a.raster=+$(p+"Raster").value||0;
+}
+$("achsDlg").addEventListener("input",()=>{achsAus("ax",achsX());achsAus("ay",ACHS.y);ACHS.y.e=E.n;achsInfo();achsenSpeichern();});
+$("achsDlg").addEventListener("change",()=>{achsAus("ax",achsX());achsAus("ay",ACHS.y);ACHS.y.e=E.n;achsInfo();achsenSpeichern();});
+$("achsOeffnen").onclick=()=>{achsDlgFuellen();$("achsDlg").showModal();};
+$("achsZu").onclick=()=>$("achsDlg").close();
+$("achsAuto").onclick=()=>{ACHS={xk:{},xe:{},y:{e:E.n}};achsenSpeichern();achsDlgFuellen();};
+achsenEinheit();
+
 $("simOeffnen").onclick=()=>{
   // laufende Simulation: Werte vom Pico (die gelten); sonst die im Browser gemerkten
   const ls=lsLesen("wz_sim",null);
