@@ -78,6 +78,9 @@ static void webPresseStatus() {
   jsonf("},\"par\":{");
   jsonZahl("anfahrt", pres.anfahrtMm, 2);
   jsonZahl("vpress", pres.vPressMmS, 3);
+  jsonZahl("vanfahrt", pres.vAnfahrtMmS, 2);
+  jsonZahl("vrueck", pres.vRueckMmS, 2);
+  jsonZahl("kalrueck", mot.kalRueck100 * 0.01f, 2);
   jsonf("\"halt\":%lu,", (unsigned long)pres.haltMs);
   jsonZahl("fmax", (float)(motorMaxKraftG() * N_PRO_GRAMM), 1);
   jsonZahl("kontakt", mot.kontaktG * N_PRO_GRAMM, 2);

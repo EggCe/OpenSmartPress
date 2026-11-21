@@ -53,7 +53,7 @@ struct MotorEinst {
   uint8_t  almModus;        // 0 aus, 1 Alarm bei LOW, 2 Alarm bei HIGH
   uint8_t  kalGueltig;      // Ergebnis der letzten Endpunkt-Kalibrierung vorhanden
   uint8_t  kalGrund;        // 1 = Überlauf erreicht, 2 = Maximalkraft erreicht
-  uint8_t  reserviert[2];
+  uint16_t kalRueck100;     // Rückstellweg nach dem Kalibrieren in 0,01 mm über dem Werkzeug-Endpunkt (0 = Startposition)
   int32_t  kalTiefe;        // Schritte vom Start bis zum Kontakt
   int32_t  kalEnde;         // Schritte vom Kontakt bis zum Endpunkt
   float    kalKraftG;       // Kraft am Endpunkt
@@ -68,7 +68,8 @@ struct PresseEinst {
   float    anfahrtMm;       // Eilgang bis so viele mm über dem Werkzeug-Endpunkt, danach Pressgeschwindigkeit
   float    vPressMmS;       // Pressgeschwindigkeit
   uint32_t haltMs;          // Haltezeit am Endpunkt
-  uint8_t  reserviert[8];
+  float    vAnfahrtMmS;     // Anfahrt bis zum Anfahrpunkt (0 in älteren Blöcken = PRESSE_V_STANDARD_MMS)
+  float    vRueckMmS;       // Rückfahrt nach dem Pressen (0 in älteren Blöcken = PRESSE_V_STANDARD_MMS)
   uint32_t crc;
 };
 static_assert(sizeof(PresseEinst) == 32, "PresseEinst muss 32 Byte gross sein");

@@ -49,6 +49,7 @@ struct Param {
   float    accMmS2       = 20.0f;  // Beschleunigung
   float    hubMm         = 45.0f;  // maximaler Suchweg
   int32_t  ueberSchritte = 10;     // Überlauf nach dem Kontakt
+  int32_t  kalRueckSchritte = 0;   // Rückstellweg nach dem Kalibrieren über dem Kontakt (0 = Startposition)
   // Kraft (von Kern 0 aus Tara und Faktor berechnet)
   int32_t  tara          = 0;      // Counts ohne Last
   int32_t  vorzeichen    = 1;      // +1/-1, damit Last positiv ist (Vorzeichen des Faktors)
@@ -58,6 +59,8 @@ struct Param {
   int32_t  presseAnfahrt = 0;      // Ende des Eilgangs, ab hier mit vPressMmS
   int32_t  presseEnde    = 0;      // Ende des Pressens (kalibrierter tatsächlicher Endpunkt)
   float    vPressMmS     = 1.0f;   // Pressgeschwindigkeit
+  float    vAnfahrtMmS   = 3.0f;   // Anfahrt bis presseAnfahrt
+  float    vRueckMmS     = 3.0f;   // Rückfahrt nach dem Pressen
   uint32_t haltMs        = 0;      // Haltezeit am Ende
   // Simulation ohne Motor und Last: die Kraft wird im ADC-Interrupt aus der Position berechnet
   uint8_t  simulation     = 0;

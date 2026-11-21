@@ -283,7 +283,9 @@ cell, without workpiece. Required after every power-up, because the motor positi
    **tool end point** is reached. It becomes the new zero point.
 3. On to the **actual end point**: contact + `ueber` steps (default 10), or earlier at `fmax`
    (default and upper limit 50 kg).
-4. Back to the start position. The log shows contact depth, end point, force at the end point and the stiffness in kg/mm.
+4. Back to the start position or, with `mp kalrueck <mm>` (0–45, default 0 = start position), only to this many
+   mm above the tool end point – at most up to the start position. The presses then start there; choose the value
+   larger than "Press from" (`anfahrt`), otherwise the approach is skipped. The log shows contact depth, end point, force at the end point and the stiffness in kg/mm.
 
 Without a load rise over the whole stroke, the move aborts with "no contact". On every abort the motor stays at the
 abort position; move it up again with `mot auf <mm>`.
@@ -309,10 +311,11 @@ fine for 0.5 s. Not checked in simulation.
 | `ena` | 0 unused, 1 opto on = motor off, 2 opto on = motor on | 0 |
 | `alm` | 0 off, 1 alarm on LOW, 2 alarm on HIGH | 0 |
 | `vsuch` | speed of contact search and overtravel (mm/s) | 1 |
-| `vfahrt` | speed of jog mode and return (mm/s) | 5 |
+| `vfahrt` | speed of jog mode and of the return during calibration (mm/s) | 5 |
 | `acc` | acceleration (mm/s²) | 20 |
 | `hub` | maximum search path (mm, at most 45) | 45 |
 | `ueber` | steps after contact (overtravel) | 10 |
+| `kalrueck` | retract after calibration: mm above the tool end point, 0 = back to the start position | 0 |
 | `kontakt` | load change that counts as contact (g) | 100 |
 | `fmax` | maximum force, downward move stops immediately (g, at most 50 000) | 50 000 |
 
@@ -337,8 +340,8 @@ language (DE / EN).
    and the actual end point, and returns.
 3. **Select or create a session** ("Select session …": create a new session with the suggested name "Batch
    YYYY-MM-DD" or open one of the last ones). Every press is saved immediately in the active session.
-4. **Insert the workpiece and START** (button or push-button): rapid traverse to the approach point, then at press
-   speed to the calibrated end point (or to the maximum force), hold time, back to the start.
+4. **Insert the workpiece and START** (button or push-button): at approach speed to the approach point, then at press
+   speed to the calibrated end point (or to the maximum force), hold time, back to the start at return speed.
 
 ### Chart and indicators
 
@@ -383,9 +386,11 @@ analysis and the export run in the browser.
   force and phase of every sample.
 - Raw data only exists in the browser that was open during the press. If it is missing (page closed, WLAN gap longer
   than the buffer), the page automatically uses the Pico curve.
-- The analysis indicators are averaged over the same path width (one Pico segment) for both sources,
-  so that session statistics and trend stay comparable. The positions (e.g. path of the joining force) become more
-  precise with raw data.
+- The press page smooths both sources for display and analysis with a moving average over **0.05 mm** of path.
+  That is exactly one period of the drive's force ripple (40 steps at 800 steps/mm = 1/100 revolution of the 5 mm
+  screw), which averages out this way. Session statistics and trend stay comparable, and the positions (e.g. path
+  of the joining force) become more precise with raw data. The Pico's indicators (Fmax, Fmean, …) and the raw data
+  CSV stay unsmoothed.
 - Clearing browser data also removes the raw data. Save important presses as "Raw data CSV".
 
 ### Analysis ("Analysis" card)
@@ -416,18 +421,28 @@ Data is always stored in N.
 
 The workpiece path is limited mechanically by a stop screw on the press head (approx. 5 mm). Pressing and
 recording therefore happen at most **10 mm** above the calibrated tool end point (5 mm path plus reserve,
-`PRESSWEG_MAX_MM` in `src/konfig.h`); above that the drive moves at rapid traverse.
+`PRESSWEG_MAX_MM` in `src/konfig.h`); above that the drive moves at approach speed.
 
 `mp anfahrt <mm>` (0–10, default 5): from this many mm above the tool end point, pressing happens at press speed;
 choose slightly higher than the top edge of the workpiece. Older stored values above 10 mm are limited to 10 mm at
 start-up. The 960 points of the Pico curve are at most 5.2 µm apart at 5 mm, at most 10.4 µm at 10 mm – set it
 as tightly as possible.
-`mp vpress <mm/s>`: press speed. `mp halt <ms>`: hold time at the end point. Then `s`.
+`mp vpress <mm/s>`: press speed. `mp halt <ms>`: hold time at the end point.
+`mp vanfahrt <mm/s>` (0.1–50, default 3): approach from the start position to the approach point.
+`mp vrueck <mm/s>` (0.1–50, default 3): return after pressing. Then `s`.
 
-On the press page (Setup mode) these values are under **Press parameters**, together with **Max. force** (`mp fmax`)
-and **Contact at** (`mp kontakt`) in the selected force unit (the Pico calculates in grams). Changed fields are
-marked yellow until they are sent with "Apply"; only changed values are sent. Permanent only with
-"Save to flash".
+On the press page (Setup mode) these values are under **Press parameters**, in three groups:
+
+| Group | Fields (command) |
+|---|---|
+| Path | Press from (`mp anfahrt`), Retract after calibration (`mp kalrueck`) – both in mm above the end point |
+| Speed | Approach (`mp vanfahrt`), Pressing (`mp vpress`), Return (`mp vrueck`) in mm/s |
+| Force and time | Contact at (`mp kontakt`), Max. force (`mp fmax`) in the selected force unit (the Pico calculates in grams), Hold time (`mp halt`) in ms |
+
+Changed fields are marked yellow, values outside the allowed range red ("Apply" is then disabled). "Apply" (or
+Enter in the field) sends only the changed values, "Discard" resets them to the Pico's values. "Save to flash"
+applies pending changes and saves permanently (`s`). If the retract position is below "Press from", the card points
+this out.
 
 ### Simulation without motor
 

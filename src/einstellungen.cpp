@@ -85,7 +85,8 @@ static bool gueltig(const MotorEinst &e) {
          isfinite(e.schritteProMm) && e.schritteProMm >= 0.0f &&
          isfinite(e.vSuchMmS) && isfinite(e.vFahrtMmS) && isfinite(e.accMmS2) &&
          e.hubMm > 0.0f && e.hubMm <= 45.0f && e.maxKraftG > 0.0f && e.maxKraftG <= NENNLAST_G &&
-         e.dirAb <= 1 && e.invertiert <= 1 && e.enaModus <= 2 && e.almModus <= 2;
+         e.dirAb <= 1 && e.invertiert <= 1 && e.enaModus <= 2 && e.almModus <= 2 &&
+         e.kalRueck100 <= (uint16_t)lroundf(KAL_RUECK_MAX_MM * 100.0f);
 }
 
 void presseStandard() {
@@ -95,6 +96,13 @@ void presseStandard() {
   pres.anfahrtMm = PRESSWEG_STANDARD_MM;   // 5 mm pressen, darüber Eilgang (einstellbar bis PRESSWEG_MAX_MM)
   pres.vPressMmS = 1.0f;
   pres.haltMs    = 0;
+  pres.vAnfahrtMmS = PRESSE_V_STANDARD_MMS;
+  pres.vRueckMmS   = PRESSE_V_STANDARD_MMS;
+}
+
+// 0 = Block aus älterer Firmware (Reservebytes), sonst im erlaubten Bereich
+static bool vGueltig(float v) {
+  return v == 0.0f || (isfinite(v) && v >= PRESSE_V_MIN_MMS && v <= PRESSE_V_MAX_MMS);
 }
 
 static bool gueltig(const PresseEinst &e) {
@@ -102,7 +110,7 @@ static bool gueltig(const PresseEinst &e) {
          e.crc == crc32((const uint8_t *)&e, sizeof(e) - sizeof(e.crc)) &&
          isfinite(e.anfahrtMm) && e.anfahrtMm >= 0.0f && e.anfahrtMm <= 45.0f &&
          isfinite(e.vPressMmS) && e.vPressMmS >= 0.01f && e.vPressMmS <= 20.0f &&
-         e.haltMs <= 60000;
+         e.haltMs <= 60000 && vGueltig(e.vAnfahrtMmS) && vGueltig(e.vRueckMmS);
 }
 
 // ===========================================================================
@@ -159,9 +167,11 @@ void einstellungenStarten() {
 
   if (blockLaden(pres, dateiDa, d.p, PRESSE_EEPROM_ADR, ausEeprom)) {
     if (pres.anfahrtMm > PRESSWEG_MAX_MM) pres.anfahrtMm = PRESSWEG_MAX_MM;   // alte Werte (bis 45 mm) begrenzen
+    if (pres.vAnfahrtMmS == 0.0f) pres.vAnfahrtMmS = PRESSE_V_STANDARD_MMS;  // ältere Blöcke: Reservebytes
+    if (pres.vRueckMmS == 0.0f)   pres.vRueckMmS   = PRESSE_V_STANDARD_MMS;
   } else {
     presseStandard();
-    meld.println(F("# Pressvorgang: Standardwerte (kein Eilgang, 1 mm/s, keine Haltezeit)."));
+    meld.println(F("# Pressvorgang: Standardwerte (Pressen ab 5 mm, 1 mm/s, An-/Rueckfahrt 3 mm/s, keine Haltezeit)."));
   }
 
   if (ausEeprom && dateisystemOk()) {

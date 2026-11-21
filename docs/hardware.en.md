@@ -150,6 +150,6 @@ Consequences for this setup:
 - **Path resolution:** At 5 mm pitch and 1600 ppr one step is 3.1 µm, much finer than the
   repeatability (20–50 µm) – path values in the press curves are accurate to about ± 0.05 mm, plus the
   elastic deformation of frame and load cell under load.
-- **Speed:** rapid traverse and `vpress` at most 100 mm/s.
+- **Speed:** rapid traverse (`vanfahrt`, `vrueck`, `vfahrt`) and `vpress` at most 100 mm/s.
 - Ball screws are not self-locking: without motor current (ENA off, emergency stop, driver alarm) the
   carriage can run down under its own weight or residual force when mounted vertically.
