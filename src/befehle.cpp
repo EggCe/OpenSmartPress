@@ -52,6 +52,7 @@ static void zeigeHilfe() {
   meld.println(F("#      sim [an|aus]       Simulation ohne Motor: Kraft wird aus der Position berechnet"));
   meld.println(F("#      sim par | sim <name> <wert>  Simulationsparameter (werkzeug weg fmin fmax rauschen riss spitze)"));
   meld.println(F("#      sit                Sitzungen anzeigen; sit neu <Name> | wahl <Nr> | zu | loeschen <Nr> ja"));
+  meld.println(F("#      sit pl <Nr> ja     Pressung <Nr> der aktiven Sitzung loeschen (Nummer wird nicht neu vergeben)"));
   meld.println(F("#      mot ab|auf <mm>    Tippbetrieb; 'mot s <n>' = n Schritte (+ ab)"));
   meld.println(F("#      mot null|ein|aus   Position 0 setzen / Motorstrom ein / aus"));
   meld.println(F("#      mot stop           anhalten (auch 'x' und STOPP-Taster)"));
@@ -219,7 +220,14 @@ void verarbeiteBefehl(char *text) {
       sitzungLoeschen((uint16_t)strtoul(a2, nullptr, 10));
       return;
     }
-    meld.println(F("# Aufruf: sit | sit neu <Name> | sit wahl <Nr> | sit zu | sit loeschen <Nr> ja"));
+    if (strcmp(a1, "pl") == 0 && a2) {                  // Pressung der aktiven Sitzung löschen
+      if (!sitzungAktiv()) { meld.println(F("# Keine aktive Sitzung.")); return; }
+      if (argc < 3 || strcmp(arg[2], "ja") != 0) { meld.printf("# Zur Bestaetigung: sit pl %s ja\n", a2); return; }
+      if (presseLaeuft() || antrieb::beschaeftigt()) { meld.println(F("# Antrieb faehrt - erst im Stillstand loeschen.")); return; }
+      sitzungPresseLoeschen(sitzungAktiv(), strtoul(a2, nullptr, 10));
+      return;
+    }
+    meld.println(F("# Aufruf: sit | sit neu <Name> | sit wahl <Nr> | sit zu | sit loeschen <Nr> ja | sit pl <Pressung> ja"));
     return;
   }
   if (strcmp(cmd, "wd") == 0) {

@@ -67,6 +67,7 @@ show. The browser remembers the choice for both pages; a new browser starts with
   chart, presses, trend and statistics.
 - **Setup** – additionally data rate, smoothing, statistics, noise tests, calibrate scale, save,
   motor jog mode, simulation, press parameters, analysis settings, renaming/deleting sessions,
+  deleting single presses,
   log and command line.
 
 This is a view selection, not access protection.
@@ -361,7 +362,8 @@ table row shows its indicators and the deviation from the session mean.
 | Grid | spacing of the grid lines chosen automatically (about 8 or 5 divisions) | fixed spacing, e.g. 0.05 mm (one period of the drive ripple) or 5 N |
 
 With a fixed grid only round values are labelled and the other lines are faint; a grid that is too fine for the
-chart width is coarsened automatically. The fixed path range applies per path reference (from contact / from tool
+chart width is coarsened automatically; below the fields the dialog shows which range and grid are actually
+drawn. Numbers may be entered with a comma or a point. The fixed path range applies per path reference (from contact / from tool
 end point); when the force unit changes, the force range is converted and the force grid switches to Auto. Mouse
 wheel (zoom) and dragging (pan) still work, a double click returns to the setting. The button is highlighted while
 anything is not on Auto; the browser remembers the setting.
@@ -490,6 +492,12 @@ samples it delivers.
 The Pico's flash has room for about 200 presses. Sessions can be downloaded as CSV (for Excel: semicolon,
 decimal comma, German headers) or JSON. Then delete old sessions.
 
+**Delete a single press** (Setup mode): select the press, click "Delete press" under "Management" in the details and
+confirm (or `sit pl <no> ja` for the active session). The press then no longer appears in the chart, table,
+statistics, trend and export, its raw data in the browser is removed and its flash block is freed. The number stays
+taken (the next press does not get the same number), so numbers in exported files remain unique. Deleting only
+works at standstill and cannot be undone.
+
 > The force limit stops the motor quickly, but does not replace a protective device (emergency stop, guard,
 > two-hand control).
 
@@ -523,6 +531,7 @@ Commands and the firmware's answers are German; the English meaning of the Germa
 | `sim [an\|aus]` | simulation without motor (on / off; force calculated from the position) |
 | `sim par` / `sim <name> <value>` | show / set simulation parameters: `werkzeug weg fmin fmax rauschen riss spitze` (tool, path, min/max force, noise, crack, peak) |
 | `sit` | show sessions; `sit neu <name>` (new), `sit wahl <no>` (select), `sit zu` (close), `sit loeschen <no> ja` (delete) |
+| `sit pl <no> ja` | delete press `<no>` of the active session (the number is not reused) |
 | `enc` | encoder test: counts EA/EB on GP10/GP11. Turn the shaft by hand exactly 1 revolution: counts = 4 × line count. During `mot s <n>`, "Zaehlschritte/Motorschritt" (counts per motor step) shows whether encoder and driver setting match. `enc 0` = zero the counter, `enc aus` = stop |
 | `wlan [an\|aus]` | WLAN status or switch on/off (on again only over USB) |
 | `wd` | watchdog status, reason for the last restart and highest stack usage of both cores (`wd test 0\|1` hangs a core for a test and triggers a restart) |

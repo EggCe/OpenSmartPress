@@ -63,6 +63,7 @@ Der Browser merkt sich die Wahl für beide Seiten; ein neuer Browser startet mit
   Diagramm, Pressungen, Trend und Statistik.
 - **Einrichten** – zusätzlich Datenrate, Glättung, Statistik, Rauschtests, Waage kalibrieren, Speichern,
   Tippbetrieb des Motors, Simulation, Pressparameter, Auswerteeinstellungen, Umbenennen/Löschen von Sitzungen,
+  Löschen einzelner Pressungen,
   Protokoll und Befehlszeile.
 
 Das ist eine Ansichtswahl, kein Zugriffsschutz.
@@ -355,7 +356,8 @@ Tabellenzeile zeigt ihre Kennwerte und die Abweichung zum Mittel der Sitzung.
 | Raster | Abstand der Gitterlinien automatisch (etwa 8 bzw. 5 Teilungen) | fester Abstand, z. B. 0,05 mm (eine Periode der Antriebswelligkeit) oder 5 N |
 
 Bei festem Raster sind nur runde Werte beschriftet, die übrigen Linien blass; ein Raster, das für die
-Diagrammbreite zu fein ist, wird automatisch vergröbert. Der feste Wegbereich gilt je Wegbezug (ab Kontakt /
+Diagrammbreite zu fein ist, wird automatisch vergröbert; der Dialog zeigt darunter, welcher Bereich und welches
+Raster tatsächlich gezeichnet werden. Zahlen dürfen mit Komma oder Punkt eingegeben werden. Der feste Wegbereich gilt je Wegbezug (ab Kontakt /
 ab Werkzeug-Endpunkt), beim Wechsel der Krafteinheit wird der Kraftbereich umgerechnet und das Kraftraster
 springt auf Auto. Mausrad (zoomen) und Ziehen (verschieben) wirken weiterhin, Doppelklick kehrt zur Einstellung
 zurück. Der Knopf ist hervorgehoben, solange etwas nicht auf Auto steht; der Browser merkt sich die Einstellung.
@@ -483,6 +485,12 @@ Messwerte sie liefert.
 Im Flash des Pico ist Platz für etwa 200 Pressungen. Sitzungen lassen sich als CSV (für Excel: Semikolon,
 Dezimalkomma) oder JSON herunterladen. Danach alte Sitzungen löschen.
 
+**Einzelne Pressung löschen** (Modus Einrichten): Pressung auswählen, in den Details unter „Verwaltung“ auf
+„Pressung löschen“ klicken und bestätigen (oder `sit pl <Nr> ja` für die aktive Sitzung). Die Pressung fehlt danach
+in Diagramm, Tabelle, Statistik, Trend und Export, ihre Rohdaten im Browser werden entfernt und ihr Flash-Block
+wird frei. Die Nummer bleibt belegt (die nächste Pressung bekommt nicht dieselbe Nummer), damit Nummern in
+exportierten Dateien eindeutig bleiben. Löschen geht nur im Stillstand und lässt sich nicht rückgängig machen.
+
 > Die Kraftgrenze stoppt den Motor schnell, ersetzt aber keine Schutzeinrichtung (Not-Aus, Schutzhaube,
 > Zweihandbedienung).
 
@@ -515,6 +523,7 @@ Eingabe im Feld unter dem Protokoll oder im seriellen Monitor (Zeilenende „Neu
 | `sim [an\|aus]` | Simulation ohne Motor (Kraft aus der Position berechnet) |
 | `sim par` / `sim <name> <wert>` | Simulationsparameter anzeigen / setzen: `werkzeug weg fmin fmax rauschen riss spitze` |
 | `sit` | Sitzungen anzeigen; `sit neu <Name>`, `sit wahl <Nr>`, `sit zu`, `sit loeschen <Nr> ja` |
+| `sit pl <Nr> ja` | Pressung `<Nr>` der aktiven Sitzung löschen (Nummer wird nicht neu vergeben) |
 | `enc` | Encoder-Test: zählt EA/EB an GP10/GP11 mit. Welle von Hand genau 1 Umdrehung drehen: Zählschritte = 4 × Strichzahl. Bei `mot s <n>` zeigt „Zählschritte/Motorschritt“, ob Encoder und Treibereinstellung zusammenpassen. `enc 0` = Zähler null, `enc aus` = beenden |
 | `wlan [an\|aus]` | WLAN-Status bzw. ein-/ausschalten (wieder an nur über USB) |
 | `wd` | Watchdog-Status, Grund des letzten Neustarts und höchste Stapelbelegung beider Kerne (`wd test 0\|1` hängt einen Kern zum Test auf und löst einen Neustart aus) |

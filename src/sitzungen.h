@@ -7,6 +7,10 @@
  *   /s/<id>/index.bin   PressKopf je Pressung, hintereinander (schnelle Übersicht)
  *   /s/<id>/pNNNN.bin   PressKopf + Punkte einer Pressung (<= 4 KB = ein Flash-Block)
  *
+ * Gelöschte Pressung: der Indexeintrag bleibt als Grabstein (status = PRESS_GELOESCHT, punkte = 0), die
+ * Datei pNNNN.bin wird entfernt. So bleibt Eintrag i = Pressung i+1, Nummern werden nie neu vergeben
+ * (neue Nummer = Anzahl der Einträge + 1), und Seite/Export überspringen den Eintrag.
+ *
  * Flash schreiben hält Kern 1 an (ADC-Interrupt und Schrittzählung!). Alle
  * schreibenden Funktionen verweigern daher, solange der Antrieb fährt.
  *
@@ -26,7 +30,8 @@ constexpr uint16_t PRESS_VERSION     = 1;
 enum PressStatus : uint8_t {
   PRESS_OK = 0,           // bis zum Endpunkt bzw. zur Maximalkraft gepresst und zurückgefahren
   PRESS_ABBRUCH = 1,      // abgebrochen (Stopp, Taster, Alarm, Messwerte)
-  PRESS_KRAFT_ANFAHRT = 2 // Maximalkraft schon im Eilgang (Anfahrpunkt zu tief?)
+  PRESS_KRAFT_ANFAHRT = 2, // Maximalkraft schon im Eilgang (Anfahrpunkt zu tief?)
+  PRESS_GELOESCHT = 3      // gelöscht: nur noch Grabstein im Index, Kurve entfernt
 };
 
 // Kopf einer Pressung (128 Byte). Wege in mm relativ zum Werkzeug-Endpunkt (+ = tiefer).
@@ -98,7 +103,7 @@ void     zeitText(uint32_t unix, char *puf, size_t n);  // "2026-11-14 09:30" (O
 // ----- aktive Sitzung -----
 uint16_t           sitzungAktiv();                // 0 = keine
 const SitzungMeta &sitzungAktivMeta();
-uint32_t           sitzungAktivAnzahl();          // Pressungen in der aktiven Sitzung
+uint32_t           sitzungAktivAnzahl();          // Indexeinträge der aktiven Sitzung (inkl. gelöschter)
 bool sitzungPresseSpeichern(PressKopf &k, const PressPunkt *punkte, uint16_t n);  // setzt k.nr
 
 // ----- Verwaltung (Rückgabe false: Meldung schon ausgegeben) -----
@@ -107,8 +112,10 @@ bool     sitzungWaehlen(uint16_t id);
 void     sitzungSchliessen();
 bool     sitzungAendern(uint16_t id, const char *name, const char *notiz);
 bool     sitzungLoeschen(uint16_t id);
-bool     sitzungMetaLesen(uint16_t id, SitzungMeta &m, uint32_t &anzahl);
-// Alle Sitzungen (aufsteigend nach id)
+bool     sitzungPresseLoeschen(uint16_t id, uint32_t nr);   // Pressung als gelöscht markieren, Kurve entfernen
+uint32_t sitzungAnzahlGueltig(uint16_t id);                 // Pressungen ohne die gelöschten
+bool     sitzungMetaLesen(uint16_t id, SitzungMeta &m, uint32_t &anzahl);   // anzahl = Indexeinträge
+// Alle Sitzungen (aufsteigend nach id); anzahl = Pressungen ohne die gelöschten
 void     sitzungenAuflisten(void (*cb)(const SitzungMeta &m, uint32_t anzahl, void *ctx), void *ctx);
 void     speicherBelegung(uint32_t &belegt, uint32_t &gesamt);
 bool     speicherReichtFuerPresse();

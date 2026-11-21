@@ -8,7 +8,7 @@
  *   GET  /sitzung/index?id=         binär: PressKopf je Pressung (128 Byte)
  *   GET  /sitzung/presse?id=&nr=    binär: PressKopf + Punkte
  *   GET  /sitzung/export?id=&f=&e=  CSV (Excel, ';' und Dezimalkomma, Kraft in e = N|kg|lbs) bzw. JSON (immer N)
- *   POST /sitzung  a=neu|wahl|zu|aendern|loeschen, id, name, notiz
+ *   POST /sitzung  a=neu|wahl|zu|aendern|loeschen|presse_loeschen, id, name, notiz, nr
  *   POST /zeit     t = Unix-Zeit, tz = Minuten östlich von UTC
  */
 #include <WebServer.h>
@@ -238,6 +238,8 @@ static void webSitzungAktion() {
     ok = sitzungAendern(id, srv->arg("name").c_str(), srv->hasArg("notiz") ? srv->arg("notiz").c_str() : nullptr);
   } else if (a == "loeschen") {
     ok = sitzungLoeschen(id);
+  } else if (a == "presse_loeschen") {
+    ok = sitzungPresseLoeschen(id, strtoul(srv->arg("nr").c_str(), nullptr, 10));
   }
   srv->send(200, "application/json", ok ? "{\"ok\":1}" : "{\"ok\":0}");
 }
@@ -260,7 +262,7 @@ static const char *dz(char *puf, size_t n, float v, uint8_t stellen) {
 }
 
 static const char *statusText(uint8_t s) {
-  return s == PRESS_OK ? "OK" : s == PRESS_KRAFT_ANFAHRT ? "Kraft im Eilgang" : "Abbruch";
+  return s == PRESS_OK ? "OK" : s == PRESS_KRAFT_ANFAHRT ? "Kraft im Eilgang" : s == PRESS_GELOESCHT ? "geloescht" : "Abbruch";
 }
 
 // Alle Pressungen einer Sitzung nacheinander lesen
@@ -345,12 +347,13 @@ static void webExport() {
     jsonf("\xEF\xBB\xBF");                               // BOM: Excel erkennt UTF-8
     jsonf("Sitzung;%u;%s\r\n", m.id, m.name);
     jsonf("Notiz;%s\r\n", m.notiz);
-    jsonf("Erstellt;%s\r\nExportiert;%s\r\nPressungen;%lu\r\n\r\n", erst, jetzt, (unsigned long)anzahl);
+    jsonf("Erstellt;%s\r\nExportiert;%s\r\nPressungen;%lu\r\n\r\n", erst, jetzt, (unsigned long)sitzungAnzahlGueltig(id));
     jsonf("Nr;Zeit;Status;Endgrund;Kontakt [mm];Endpunkt [mm];Presstiefe [mm];Fmax [%s];Weg bei Fmax [mm];", E);
     jsonf("Fend [%s];Fhalt [%s];Fmittel [%s];Sigma [%s];Fmin [%s];Spannweite [%s];", E, E, E, E, E, E);
     jsonf("Arbeit [J];Presszeit [s];Zykluszeit [s];Proben;Verloren;Pressgeschw. [mm/s];Haltezeit [ms];Simulation\r\n");
     File f = LittleFS.open(ix, "r");
     while (f && kopfLesen(f, k)) {
+      if (k.status == PRESS_GELOESCHT) continue;        // gelöschte Pressungen nicht exportieren
       char t[20], v[12][16];
       zeitText(k.zeit, t, sizeof(t));
       jsonf("%lu;%s;%s;%s;", (unsigned long)k.nr, t, statusText(k.status), antrieb::stoppText((antrieb::Stopp)k.endGrund));
@@ -366,7 +369,7 @@ static void webExport() {
     hintergrund();
     jsonf("\r\nNr;Weg [mm];Kraft [%s];Zeit [ms]\r\n", E);
     f = LittleFS.open(ix, "r");
-    while (f && kopfLesen(f, k)) { punkteLesen(id, k, csvPunkt); hintergrund(); }
+    while (f && kopfLesen(f, k)) { if (k.status != PRESS_GELOESCHT) punkteLesen(id, k, csvPunkt); hintergrund(); }
     if (f) f.close();
   } else {
     // jsonf sendet höchstens 255 Zeichen je Aufruf: Name und Notiz einzeln
@@ -376,6 +379,7 @@ static void webExport() {
     File f = LittleFS.open(ix, "r");
     bool erste = true;
     while (f && kopfLesen(f, k)) {
+      if (k.status == PRESS_GELOESCHT) continue;
       jsonf("%s{\"nr\":%lu,\"zeit\":%lu,\"status\":\"%s\",\"endgrund\":\"%s\",\"kontakt\":%u,\"simuliert\":%u,",
             erste ? "" : ",", (unsigned long)k.nr, (unsigned long)k.zeit, statusText(k.status),
             antrieb::stoppText((antrieb::Stopp)k.endGrund), k.kontakt, k.simuliert);

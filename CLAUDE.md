@@ -95,6 +95,9 @@ translation (see "Bilingual docs and UI" above).
 - **Storage** (`src/sitzungen.cpp`, LittleFS): `/s/<id>/meta.bin`, `index.bin` (all `PressKopf`s), `pNNNN.bin`
   (`PressKopf` 128 B + `PressPunkt` 4 B each, ≤ 4 KB = one flash block). The browser parses these with `DataView`
   (`src/web/seiten/presse.h`): changing `PressKopf` means updating the JS offsets and `PRESS_VERSION`.
+  A deleted press (`sitzungPresseLoeschen`, `sit pl`, `POST /sitzung a=presse_loeschen`) stays in `index.bin` as a
+  tombstone (`status = PRESS_GELOESCHT`, `punkte = 0`) and its `pNNNN.bin` is removed: index entry i stays press
+  i+1 and numbers are never reused (new nr = entries + 1). Page, export and session counts skip tombstones.
 - **Flash writes pause core 1** (ADC ISR, step counting). All writes go through `sitzungen.cpp`, which refuses while
   `antrieb::beschaeftigt()`, and call `watchdogWarten()` + `messTimeoutNeustart()` afterwards.
 - Web: `/presse` page, routes in `src/web/presse_web.cpp` (status, sessions, binary curves, CSV/JSON export). Long

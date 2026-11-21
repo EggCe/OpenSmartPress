@@ -89,6 +89,23 @@ bool sitzungMetaLesen(uint16_t id, SitzungMeta &m, uint32_t &anzahl) {
   return ok;
 }
 
+uint32_t sitzungAnzahlGueltig(uint16_t id) {
+  if (!fsOk || id == 0) return 0;
+  char p[32];
+  sitzungPfad(p, sizeof(p), id, "index.bin");
+  File f = LittleFS.open(p, "r");
+  if (!f) return 0;
+  const uint32_t n = f.size() / sizeof(PressKopf);
+  uint32_t g = 0;
+  for (uint32_t i = 0; i < n; i++) {                   // nur das Statusbyte jedes Eintrags lesen
+    uint8_t s;
+    if (!f.seek(i * sizeof(PressKopf) + offsetof(PressKopf, status)) || f.read(&s, 1) != 1) break;
+    if (s != PRESS_GELOESCHT) g++;
+  }
+  f.close();
+  return g;
+}
+
 static bool metaSchreiben(const SitzungMeta &m) {
   char p[32];
   sitzungPfad(p, sizeof(p), m.id, "meta.bin");
@@ -265,7 +282,7 @@ bool sitzungWaehlen(uint16_t id) {
   aktivId = id; aktivMeta = m; aktivAnzahl = n;
   aktivSpeichern();
   nachSchreiben();
-  meld.printf("# Sitzung %u '%s' aktiv (%lu Pressungen).\n", id, m.name, (unsigned long)n);
+  meld.printf("# Sitzung %u '%s' aktiv (%lu Pressungen).\n", id, m.name, (unsigned long)sitzungAnzahlGueltig(id));
   return true;
 }
 
@@ -313,6 +330,40 @@ bool sitzungLoeschen(uint16_t id) {
   return true;
 }
 
+bool sitzungPresseLoeschen(uint16_t id, uint32_t nr) {
+  if (!schreibenErlaubt()) return false;
+  char p[40];
+  sitzungPfad(p, sizeof(p), id, "index.bin");
+  File ix = LittleFS.open(p, "r+");
+  if (!ix) { meld.printf("# Sitzung %u gibt es nicht oder sie hat keine Pressungen.\n", id); return false; }
+  const uint32_t n = ix.size() / sizeof(PressKopf);
+  PressKopf k;
+  int32_t stelle = -1;
+  auto lesen = [&](uint32_t i) {
+    return ix.seek(i * sizeof(PressKopf)) && ix.read((uint8_t *)&k, sizeof(k)) == sizeof(k) &&
+           k.magic == PRESS_MAGIC && k.nr == nr;
+  };
+  if (nr >= 1 && nr <= n && lesen(nr - 1)) stelle = (int32_t)(nr - 1);   // Normalfall: Eintrag nr-1
+  for (uint32_t i = 0; stelle < 0 && i < n; i++) if (lesen(i)) stelle = (int32_t)i;
+  if (stelle < 0 || k.status == PRESS_GELOESCHT) {
+    ix.close();
+    meld.printf("# Pressung %lu gibt es in Sitzung %u nicht (mehr).\n", (unsigned long)nr, id);
+    return false;
+  }
+  k.status = PRESS_GELOESCHT;                           // Grabstein: Nummer bleibt belegt
+  k.punkte = 0;
+  const bool ok = ix.seek((uint32_t)stelle * sizeof(PressKopf)) && ix.write((const uint8_t *)&k, sizeof(k)) == sizeof(k);
+  ix.close();
+  if (ok) {
+    pressePfad(p, sizeof(p), id, nr);
+    LittleFS.remove(p);                                 // Kurve entfernen, gibt den Flash-Block frei
+  }
+  nachSchreiben();
+  if (ok) meld.printf("# Pressung %lu in Sitzung %u geloescht.\n", (unsigned long)nr, id);
+  else    meld.printf("# FEHLER: Pressung %lu konnte nicht geloescht werden.\n", (unsigned long)nr);
+  return ok;
+}
+
 void sitzungenAuflisten(void (*cb)(const SitzungMeta &m, uint32_t anzahl, void *ctx), void *ctx) {
   if (!fsOk) return;
   // Nummern einsammeln und sortieren (Verzeichnisreihenfolge ist nicht garantiert)
@@ -332,7 +383,7 @@ void sitzungenAuflisten(void (*cb)(const SitzungMeta &m, uint32_t anzahl, void *
   for (uint16_t i = 0; i < anzahl; i++) {
     SitzungMeta m;
     uint32_t n;
-    if (sitzungMetaLesen(ids[i], m, n)) cb(m, n, ctx);
+    if (sitzungMetaLesen(ids[i], m, n)) cb(m, sitzungAnzahlGueltig(ids[i]), ctx);
   }
 }
 

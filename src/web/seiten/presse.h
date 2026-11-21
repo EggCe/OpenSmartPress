@@ -103,7 +103,7 @@ button.start{font-size:20px;padding:12px 40px;letter-spacing:1px}
 .achsgitter{display:grid;grid-template-columns:auto 86px 84px 84px 100px;gap:7px 8px;align-items:center;margin-top:12px}
 .achsgitter b{font-size:12px;font-weight:600;color:var(--leise)}
 .achsgitter>span{color:var(--leise);font-size:13px;white-space:nowrap}
-dialog .achsgitter input[type=number],.achsgitter select{width:100%;box-sizing:border-box;min-width:0}
+.achsgitter input,.achsgitter select{width:100%;box-sizing:border-box;min-width:0}
 .achsgitter input:disabled{opacity:.45}
 #achsOeffnen{padding:4px 13px}
 #achsOeffnen.angepasst{border-color:var(--akzent);color:var(--akzent)}
@@ -358,11 +358,11 @@ td .chip,td button{padding:2px 9px;font-size:12px}
     <span></span><b>Bereich</b><b>von</b><b>bis</b><b>Raster</b>
     <span>Weg [mm]</span>
     <select id="axModus"><option value="auto">Auto</option><option value="fest">Fest</option></select>
-    <input type="number" id="axVon" step="any"><input type="number" id="axBis" step="any">
+    <input type="text" inputmode="decimal" id="axVon"><input type="text" inputmode="decimal" id="axBis">
     <select id="axRaster"></select>
     <span>Kraft [<span class="fe">N</span>]</span>
     <select id="ayModus"><option value="auto">Auto</option><option value="fest">Fest</option></select>
-    <input type="number" id="ayVon" step="any"><input type="number" id="ayBis" step="any">
+    <input type="text" inputmode="decimal" id="ayVon"><input type="text" inputmode="decimal" id="ayBis">
     <select id="ayRaster"></select>
   </div>
   <div class="sub" id="achsInfo">&nbsp;</div>
@@ -400,7 +400,8 @@ td .chip,td button{padding:2px 9px;font-size:12px}
 const $=id=>document.getElementById(id);
 const STUFE=0.02;
 const GRUND=["-","Endpunkt erreicht","Kontakt","Maximalkraft","Alarm vom Treiber","STOPP-Taster","Stopp-Befehl","keine Messwerte","kein Kontakt","Sensorfehler"];
-const STATUS=["abgeschlossen","Abbruch","Kraft im Eilgang"];   // 0 = ohne Abbruch beendet (keine Gut/Schlecht-Aussage)
+const STATUS=["abgeschlossen","Abbruch","Kraft im Eilgang"];
+const PRESS_GELOESCHT=3;                                      // Grabstein im Index (src/sitzungen.h)   // 0 = ohne Abbruch beendet (keine Gut/Schlecht-Aussage)
 let S=null,online=false,ln=null,logRest="",offlineSeit=Date.now();
 let sitId=-1,sitN=0,ladeNr=0,holt=false,sitName="";
 let pressen=new Map();               // nr -> {k,x,y,a}  (a = Auswertung)
@@ -522,6 +523,7 @@ function kopf(dv,o){
 }
 async function kurveLaden(id,nr,token){
   const r=await fetch("/sitzung/presse?id="+id+"&nr="+nr,{cache:"no-store"});
+  if(r.status===404)return null;                             // inzwischen gelöscht: überspringen
   if(!r.ok)return false;
   const b=await r.arrayBuffer();
   if(token!==ladeNr||b.byteLength<128)return false;
@@ -546,8 +548,8 @@ async function sitzungLaden(id){
     const b=await r.arrayBuffer();
     if(token!==ladeNr)return;
     const dv=new DataView(b),n=Math.floor(b.byteLength/128);
-    for(let i=0;i<n;i++){const k=kopf(dv,i*128);pressen.set(k.nr,{k,x:null,y:null,a:{}});}
-    sitN=n;auswahl=n;anzeigenAktualisieren();
+    for(let i=0;i<n;i++){const k=kopf(dv,i*128);if(k.status!==PRESS_GELOESCHT)pressen.set(k.nr,{k,x:null,y:null,a:{}});}
+    sitN=n;auswahl=Math.max(0,...pressen.keys());anzeigenAktualisieren();
     for(const nr of [...pressen.keys()].reverse()){        // neueste zuerst
       if(token!==ladeNr)return;
       await kurveLaden(id,nr,token);
@@ -561,8 +563,9 @@ async function neuePressen(n){
   const token=ladeNr;
   try{
     for(let nr=sitN+1;nr<=n;nr++){
-      if(!await kurveLaden(sitId,nr,token))break;
-      sitN=nr;auswahl=nr;
+      const ok=await kurveLaden(sitId,nr,token);
+      if(ok===false)break;                                   // später erneut versuchen
+      sitN=nr;if(ok)auswahl=nr;                              // null: gelöscht, Nummer überspringen
     }
     anzeigenAktualisieren();listeLaden();
   }catch(e){}
@@ -583,6 +586,12 @@ async function dbAblegen(eintraege){
   const db=await dbBereit;if(!db)return false;
   return new Promise(res=>{try{const tx=db.transaction(["roh","kurve"],"readwrite");
     for(const [st,k,v] of eintraege)tx.objectStore(st).put(v,k);
+    tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>res(false);}catch(e){res(false);}});
+}
+async function dbLoeschen(eintraege){
+  const db=await dbBereit;if(!db)return false;
+  return new Promise(res=>{try{const tx=db.transaction(["roh","kurve"],"readwrite");
+    for(const [st,k] of eintraege)tx.objectStore(st).delete(k);
     tx.oncomplete=()=>res(true);tx.onerror=tx.onabort=()=>res(false);}catch(e){res(false);}});
 }
 const rohSchluessel=(sit,nr)=>sit+"/"+nr;
@@ -974,10 +983,28 @@ function details(){
     dt("Proben")+'<dd>'+T("{0} bei {1} SPS",k.proben,fmt(k.sps,0))+(k.verloren?' <span class="warn">('+T("{0} verloren",k.verloren)+')</span>':'')+'</dd>'+
     dt("Kurve")+'<dd>'+(p.rx?T("Rohdaten: {0} Punkte, 1 Schritt = {1} µm",p.rx.length,fmt(p.rds*1000,1))+' <button id="rohCsv">'+T("Rohdaten CSV")+'</button>':
       T("Pico: {0} Punkte à {1} µm",p.x?p.x.length:0,fmt(k.d*1000,0)))+'</dd>'+
-    dt("Einstellungen")+'<dd>'+T("{0} mm/s, Haltezeit {1} ms",fmt(k.vPress,2),k.haltMs)+'</dd>';
+    dt("Einstellungen")+'<dd>'+T("{0} mm/s, Haltezeit {1} ms",fmt(k.vPress,2),k.haltMs)+'</dd>'+
+    '<dt class="einr">'+T("Verwaltung")+'</dt><dd class="einr"><button class="sendet" id="presseLoeschen" title="'+
+      T("Pressung aus der Sitzung löschen: fehlt danach in Diagramm, Statistik und Export")+'">'+T("Pressung löschen")+'</button></dd>';
   $("details").innerHTML=h;
   if($("rohCsv"))$("rohCsv").onclick=()=>rohCsv(p);
+  $("presseLoeschen").onclick=()=>presseLoeschen(p);
   kurzwerte();
+}
+// Einzelne Pressung löschen (Pico: Grabstein im Index, Kurve entfernt; Browser: Rohdaten entfernen)
+async function presseLoeschen(p){
+  const nr=p.k.nr,sit=sitId;
+  if(S&&(S.bes||S.pr.lauf)){meldung(T("Antrieb fährt – erst im Stillstand löschen."),"warn");return;}
+  if(!confirm(T("Pressung {0} endgültig löschen?",nr)+"\n"+
+    T("Sie fehlt danach in Diagramm, Statistik und Export. Die Nummer wird nicht neu vergeben.")))return;
+  if(!await aktion({a:"presse_loeschen",id:sit,nr}))return;
+  if(sitId!==sit)return;
+  pressen.delete(nr);versteckt.delete(nr);
+  dbLoeschen([["roh",rohSchluessel(sit,nr)],["kurve",rohSchluessel(sit,nr)]]);
+  if(auswahl===nr){const rest=[...pressen.keys()].filter(n=>n<nr);auswahl=rest.length?Math.max(...rest):Math.max(0,...pressen.keys());}
+  ansicht=null;
+  allesAuswerten();
+  meldung(T("Pressung {0} gelöscht.",nr),"");
 }
 // Grundwerte der ausgewählten Kurve oben rechts im Diagramm
 function kurzwerte(){
@@ -1061,7 +1088,7 @@ function achsen(c,g,xEinheit,yEinheit,xStellen,rx,ry){
     if(haupt)c.fillText(fmt(v,stellen(sy*ky)),L-6,y);}
   c.textAlign="center";c.textBaseline="bottom";c.fillText(xEinheit,L+pw/2,c.canvas.clientHeight-1);
   c.save();c.translate(13,T+ph/2);c.rotate(-Math.PI/2);c.textBaseline="top";c.fillText(yEinheit,0,0);c.restore();
-  return {X,Y,st};
+  return {X,Y,st,sx,sy};
 }
 function leinwand(c){
   const el=c.canvas,dpr=window.devicePixelRatio||1,w=el.clientWidth,h=el.clientHeight;
@@ -1069,18 +1096,23 @@ function leinwand(c){
   c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
   return {w,h};
 }
+let rasterIst={x:0,y:0};                                     // zuletzt gezeichnetes Raster (Achsen-Dialog)
 function zeichnen(){
   requestAnimationFrame(zeichnen);
   if(!neuZeichnen)return;
   neuZeichnen=false;
-  trendZeichnen();
+  zeichnenJetzt();
+}
+function zeichnenJetzt(){
+  try{trendZeichnen();}catch(e){console.error(e);}           // ein Fehler im Trend darf das Kraft-Weg-Diagramm nicht blockieren
   const {w,h}=leinwand(ctx);
   const L=62,R=14,T0=12,B=38,pw=w-L-R,ph=h-T0-B;
   const ks=aktuelleKurven();
   const b=ansicht||bereich(ks);
   geo={L,T:T0,pw,ph,...b};
-  const {X,Y,st}=achsen(ctx,geo,abKontakt()?T("Weg ab Kontakt [mm]"):T("Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)"),T("Kraft [{0}]",E.n),
+  const {X,Y,st,sx,sy}=achsen(ctx,geo,abKontakt()?T("Weg ab Kontakt [mm]"):T("Weg [mm]  (0 = Werkzeug-Endpunkt, + = tiefer)"),T("Kraft [{0}]",E.n),
     undefined,achsX().raster||0,ACHS.y.e===E.n?ACHS.y.raster||0:0);
+  rasterIst={x:sx,y:sy};
 
   ctx.save();ctx.beginPath();ctx.rect(L,T0,pw,ph);ctx.clip();
   const a=pressen.get(auswahl);
@@ -1378,7 +1410,9 @@ function achsenSpeichern(){
   lsSchreiben("wz_achsen",ACHS);
   const ax=achsX(),ay=ACHS.y;
   $("achsOeffnen").classList.toggle("angepasst",!!(ax.fest||ax.raster||ay.fest||(ay.e===E.n&&ay.raster)));
-  ansicht=null;neuZeichnen=true;
+  ansicht=null;neuZeichnen=false;
+  try{zeichnenJetzt();}catch(e){neuZeichnen=true;console.error(e);}   // sofort, nicht erst im nächsten Frame
+  if($("achsDlg").open)achsInfo();
 }
 function achsenEinheit(){
   const a=ACHS.y;
@@ -1400,21 +1434,28 @@ function achsDlgFuellen(){
   document.querySelectorAll(".fe").forEach(e=>{e.textContent=E.n;});
   for(const [p,a,v0,v1,werte,einh] of [["ax",ax,g.x0,g.x1,RASTER_X,"mm"],["ay",ay,g.y0,g.y1,RASTER_Y,E.n]]){
     $(p+"Modus").value=a.fest?"fest":"auto";
-    $(p+"Von").value=a.fest&&isFinite(a.von)?a.von:r(v0);
-    $(p+"Bis").value=a.fest&&isFinite(a.bis)?a.bis:r(v1);
+    const zt=v=>v.toLocaleString(LOC(),{useGrouping:false,maximumFractionDigits:4});   // Komma bzw. Punkt je nach Sprache
+    $(p+"Von").value=zt(a.fest&&isFinite(a.von)?a.von:r(v0));
+    $(p+"Bis").value=zt(a.fest&&isFinite(a.bis)?a.bis:r(v1));
     $(p+"Von").disabled=$(p+"Bis").disabled=!a.fest;
     rasterFuellen($(p+"Raster"),werte,einh,a.raster||0);
   }
   achsInfo();
 }
 function achsInfo(){
-  const h=[];
+  const h=[],g=geo;
   for(const [p,a,n] of [["ax",achsX(),T("Weg")],["ay",ACHS.y,T("Kraft")]]){
     const falsch=a.fest&&!achsOk(a);
     $(p+"Von").classList.toggle("ungueltig",falsch);$(p+"Bis").classList.toggle("ungueltig",falsch);
-    if(falsch)h.push(T("{0}: „bis“ muss größer als „von“ sein – bis dahin gilt Auto.",n));
+    if(falsch)h.push('<span class="warn">'+T("{0}: „bis“ muss größer als „von“ sein (Zahl mit Komma oder Punkt) – bis dahin gilt Auto.",n)+'</span>');
   }
-  $("achsInfo").innerHTML=h.length?'<span class="warn">'+h.join(" ")+'</span>':"&nbsp;";
+  const grob=(soll,ist)=>soll>0&&ist>soll*1.0001;
+  const ax=achsX(),ry=ACHS.y.e===E.n?ACHS.y.raster||0:0;
+  if(grob(ax.raster,rasterIst.x))h.push('<span class="warn">'+T("Wegraster {0} mm ist für die Diagrammbreite zu fein – gezeichnet wird {1} mm.",zahlText(ax.raster),zahlText(rasterIst.x))+'</span>');
+  if(grob(ry,rasterIst.y))h.push('<span class="warn">'+T("Kraftraster {0} {1} ist für die Diagrammhöhe zu fein – gezeichnet wird {2} {1}.",zahlText(ry),E.n,zahlText(rasterIst.y))+'</span>');
+  if(g)h.push(T("Gezeichnet: Weg {0} … {1} mm, Raster {2} mm · Kraft {3} … {4} {5}, Raster {6} {5}",
+    fmt(g.x0,3),fmt(g.x1,3),zahlText(rasterIst.x),fmt(g.y0,1),fmt(g.y1,1),E.n,zahlText(rasterIst.y)));
+  $("achsInfo").innerHTML=h.join("<br>")||"&nbsp;";
 }
 function achsAus(p,a){
   const zahl=id=>parseFloat(String($(id).value).replace(",","."));
@@ -1425,7 +1466,7 @@ function achsAus(p,a){
 }
 $("achsDlg").addEventListener("input",()=>{achsAus("ax",achsX());achsAus("ay",ACHS.y);ACHS.y.e=E.n;achsInfo();achsenSpeichern();});
 $("achsDlg").addEventListener("change",()=>{achsAus("ax",achsX());achsAus("ay",ACHS.y);ACHS.y.e=E.n;achsInfo();achsenSpeichern();});
-$("achsOeffnen").onclick=()=>{achsDlgFuellen();$("achsDlg").showModal();};
+$("achsOeffnen").onclick=()=>{zeichnenJetzt();achsDlgFuellen();$("achsDlg").showModal();};
 $("achsZu").onclick=()=>$("achsDlg").close();
 $("achsAuto").onclick=()=>{ACHS={xk:{},xe:{},y:{e:E.n}};achsenSpeichern();achsDlgFuellen();};
 achsenEinheit();

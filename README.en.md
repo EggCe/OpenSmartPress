@@ -285,6 +285,7 @@ session active, enough storage, drive above the end point. If something is missi
 | `sit` | show sessions and storage usage |
 | `sit neu <name>` / `sit wahl <no>` / `sit zu` | create / open / close a session |
 | `sit loeschen <no> ja` | delete a session |
+| `sit pl <no> ja` | delete a single press of the active session (also via a button in the press page details) |
 | `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | approach point (0–45 mm, default 5), press speed, hold time (then `s`) |
 | `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | pressing: approach to the approach point and return (0.1–50 mm/s, default 3 each) |
 
@@ -411,7 +412,7 @@ grams = (counts − tara) / faktor
 | `GET /sitzungen` | JSON: all sessions and storage usage |
 | `GET /sitzung/index?id=` / `GET /sitzung/presse?id=&nr=` | binary: headers of all presses / one press (format in `src/sitzungen.h`) |
 | `GET /sitzung/export?id=&f=csv\|json` | export for download |
-| `POST /sitzung` with `a=neu\|wahl\|zu\|aendern\|loeschen` | manage sessions (new/select/close/rename/delete; header `X-Waegezelle: 1`) |
+| `POST /sitzung` with `a=neu\|wahl\|zu\|aendern\|loeschen\|presse_loeschen` | manage sessions (new/select/close/rename/delete; `presse_loeschen` with `id` and `nr` deletes one press; header `X-Waegezelle: 1`) |
 | `POST /zeit` with `t=<unix>&tz=<min>` | time from the browser (header `X-Waegezelle: 1`) |
 
 Writing requests (`POST /cmd`, `/sitzung`, `/zeit`) must send the header `X-Waegezelle: 1`, otherwise the

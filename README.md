@@ -279,6 +279,7 @@ Sitzung aktiv, genug Speicher, Antrieb steht über dem Endpunkt. Fehlt etwas, ne
 | `sit` | Sitzungen und Speicherbelegung anzeigen |
 | `sit neu <Name>` / `sit wahl <Nr>` / `sit zu` | Sitzung anlegen / öffnen / schließen |
 | `sit loeschen <Nr> ja` | Sitzung löschen |
+| `sit pl <Nr> ja` | einzelne Pressung der aktiven Sitzung löschen (auch per Knopf in den Details der Pressseite) |
 | `mp anfahrt <mm>` / `mp vpress <mm/s>` / `mp halt <ms>` | Anfahrpunkt (0–45 mm, Standard 5), Pressgeschwindigkeit, Haltezeit (danach `s`) |
 | `mp vanfahrt <mm/s>` / `mp vrueck <mm/s>` | Pressen: Anfahrt bis zum Anfahrpunkt und Rückfahrt (0,1–50 mm/s, Standard je 3) |
 
@@ -404,7 +405,7 @@ Gramm = (Counts − tara) / faktor
 | `GET /sitzungen` | JSON: alle Sitzungen und Speicherbelegung |
 | `GET /sitzung/index?id=` / `GET /sitzung/presse?id=&nr=` | binär: Köpfe aller Pressungen / eine Pressung (Format in `src/sitzungen.h`) |
 | `GET /sitzung/export?id=&f=csv\|json` | Export zum Herunterladen |
-| `POST /sitzung` mit `a=neu\|wahl\|zu\|aendern\|loeschen` | Sitzungen verwalten (Kopfzeile `X-Waegezelle: 1`) |
+| `POST /sitzung` mit `a=neu\|wahl\|zu\|aendern\|loeschen\|presse_loeschen` | Sitzungen verwalten, `presse_loeschen` mit `id` und `nr` löscht eine Pressung (Kopfzeile `X-Waegezelle: 1`) |
 | `POST /zeit` mit `t=<unix>&tz=<min>` | Uhrzeit vom Browser (Kopfzeile `X-Waegezelle: 1`) |
 
 Schreibende Anfragen (`POST /cmd`, `/sitzung`, `/zeit`) müssen die Kopfzeile `X-Waegezelle: 1` mitschicken, sonst
